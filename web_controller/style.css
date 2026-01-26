@@ -1,0 +1,272 @@
+:root {
+    --bg-dark: #050510;
+    --glass-bg: rgba(22, 27, 34, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --primary: #58a6ff;
+    --primary-glow: rgba(88, 166, 255, 0.5);
+    --accent-left: #ff7b72;
+    --accent-right: #3fb950;
+    --text-main: #ffffff;
+    --text-muted: #8b949e;
+}
+
+body {
+    background-color: var(--bg-dark);
+    background-image:
+        radial-gradient(circle at 10% 20%, rgba(88, 166, 255, 0.15) 0%, transparent 20%),
+        radial-gradient(circle at 90% 80%, rgba(163, 113, 247, 0.15) 0%, transparent 20%);
+    color: var(--text-main);
+    font-family: 'Outfit', sans-serif;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+    /* Prevent scroll on some mobiles if content fits */
+}
+
+.app-container {
+    width: 100%;
+    max-width: 450px;
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+
+    /* Glassmorphism */
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+header {
+    text-align: center;
+}
+
+header h1 {
+    font-weight: 700;
+    font-size: 2.2rem;
+    margin: 0;
+    background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+header p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-top: 0.5rem;
+    letter-spacing: 0.5px;
+}
+
+/* Connection Panel */
+#connection-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2rem;
+}
+
+.status-indicator {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--accent-left);
+    box-shadow: 0 0 12px var(--accent-left);
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.status-indicator.connected {
+    background-color: var(--accent-right);
+    box-shadow: 0 0 15px var(--accent-right), 0 0 30px rgba(63, 185, 80, 0.4);
+}
+
+.status-indicator.pulsing {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+#status-text {
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.primary-btn {
+    background: linear-gradient(135deg, var(--primary), #1f6feb);
+    color: #fff;
+    border: none;
+    padding: 1rem 2rem;
+    border-radius: 16px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    width: 100%;
+    box-shadow: 0 4px 15px rgba(88, 166, 255, 0.3);
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(88, 166, 255, 0.4);
+}
+
+.primary-btn:active {
+    transform: translateY(1px);
+}
+
+/* Secondary / Demo Button */
+.secondary-btn {
+    margin-top: 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    color: var(--text-muted);
+    padding: 0.8rem 1.5rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.secondary-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+}
+
+/* Controls */
+#control-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    transition: opacity 0.4s ease;
+}
+
+.disabled {
+    opacity: 0.3;
+    pointer-events: none;
+    filter: blur(2px);
+}
+
+.direction-controls {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.nav-btn {
+    flex: 1;
+    height: 140px;
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-main);
+    font-size: 1.3rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-btn .icon {
+    font-size: 2.5rem;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.2));
+}
+
+/* Setup colored glowing borders on hover */
+.nav-btn.left:hover {
+    border-color: var(--accent-left);
+    box-shadow: 0 0 20px rgba(255, 123, 114, 0.2);
+}
+
+.nav-btn.right:hover {
+    border-color: var(--accent-right);
+    box-shadow: 0 0 20px rgba(63, 185, 80, 0.2);
+}
+
+/* Active States */
+.nav-btn.left:active,
+.nav-btn.left.active-sim {
+    background: rgba(255, 123, 114, 0.2);
+    border-color: var(--accent-left);
+    box-shadow: inset 0 0 20px rgba(255, 123, 114, 0.4);
+    transform: scale(0.96);
+}
+
+.nav-btn.right:active,
+.nav-btn.right.active-sim {
+    background: rgba(63, 185, 80, 0.2);
+    border-color: var(--accent-right);
+    box-shadow: inset 0 0 20px rgba(63, 185, 80, 0.4);
+    transform: scale(0.96);
+}
+
+.stop-btn {
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.2);
+    color: #ffcccc;
+    padding: 1rem;
+    border-radius: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stop-btn:hover {
+    background: rgba(255, 0, 0, 0.2);
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
+}
+
+.stop-btn:active {
+    transform: scale(0.98);
+}
+
+.log-panel {
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 12px;
+    padding: 1rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    height: 80px;
+    overflow-y: auto;
+    border: 1px solid var(--glass-border);
+}
+
+.log-panel h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 0.8rem;
+    color: var(--text-main);
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
