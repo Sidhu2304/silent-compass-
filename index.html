@@ -26,9 +26,13 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-    <!-- Leaflet Routing Machine (for Auto Nav) -->
+    <!-- Leaflet Routing Machine -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+    <!-- Leaflet Geocoder (Address Search) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 </head>
 
 <body>
@@ -54,7 +58,16 @@
 
             <!-- Map Container -->
             <div id="map"
-                style="width: 100%; height: 250px; border-radius: 16px; margin-bottom: 1.5rem; display: none; z-index: 1;">
+                style="width: 100%; height: 300px; border-radius: 16px; margin-bottom: 1.5rem; display: none; z-index: 1;">
+            </div>
+
+            <!-- Route Confirmation Panel (Hidden by default) -->
+            <div id="confirmation-panel"
+                style="display:none; background: rgba(0, 50, 0, 0.8); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; text-align: center; border: 1px solid #4CAF50;">
+                <p id="route-info" style="margin: 0 0 10px 0; font-weight: bold; color: #fff;">Route Found</p>
+                <button id="start-nav-btn" class="primary-btn" style="background: #4CAF50;">
+                    START GUIDANCE
+                </button>
             </div>
 
             <div id="control-panel" class="disabled">

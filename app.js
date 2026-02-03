@@ -147,11 +147,24 @@ async function sendCommand(cmd) {
 }
 
 // --- AUTOMATED NAVIGATION LOGIC ---
+// --- AUTOMATED NAVIGATION LOGIC ---
 const mapElement = document.getElementById('map');
+const confirmPanel = document.getElementById('confirmation-panel');
+const routeInfo = document.getElementById('route-info');
+const startNavBtn = document.getElementById('start-nav-btn');
+
 let map, userMarker, routingControl;
 let currentHeading = 0;
 let nextStepBearing = null;
 let navigationActive = false;
+
+// Speak Helper
+function speak(text) {
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        window.speechSynthesis.speak(utterance);
+    }
+}
 
 // 1. Initialize Map
 function initMap() {
@@ -160,7 +173,7 @@ function initMap() {
         return;
     }
     mapElement.style.display = 'block';
-    // Center initially (will be updated by GPS)
+
     map = L.map('map').setView([0, 0], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap'
@@ -172,6 +185,7 @@ function initMap() {
             const pos = userMarker.getLatLng();
             setDestination(pos.lat, pos.lng, e.latlng.lat, e.latlng.lng);
         } else {
+            speak("Waiting for G P S lock.");
             log("Waiting for GPS lock...");
         }
     });
@@ -185,14 +199,10 @@ function initMap() {
             if (!userMarker) {
                 userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You").openPopup();
                 map.setView([lat, lng], 16);
+                speak("G P S Connected.");
             } else {
                 userMarker.setLatLng([lat, lng]);
             }
-
-            // Allow setting destination by clicking map
-            map.on('click', function (e) {
-                setDestination(lat, lng, e.latlng.lat, e.latlng.lng);
-            });
         },
         (err) => log("GPS Error: " + err.message),
         { enableHighAccuracy: true }
@@ -201,22 +211,23 @@ function initMap() {
     // 3. Track Compass Heading
     if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', (event) => {
-            if (event.alpha) {
-                // Invert alpha for standard compass heading (0 = North)
-                // Note: This varies by device/browser. Simplified for demo.
-                currentHeading = 360 - event.alpha;
-            }
+            if (event.alpha) currentHeading = 360 - event.alpha;
         });
     }
 }
 
-// 4. Calculate Route
+// 4. Calculate Route (With Search)
 function setDestination(startLat, startLng, destLat, destLng) {
     if (routingControl) {
         map.removeControl(routingControl);
     }
 
+    // Stop any current nav
+    navigationActive = false;
+    confirmPanel.style.display = 'none';
+
     log("Calculating Route...");
+    speak("Calculating route...");
 
     routingControl = L.Routing.control({
         waypoints: [
@@ -224,21 +235,34 @@ function setDestination(startLat, startLng, destLat, destLng) {
             L.latLng(destLat, destLng)
         ],
         routeWhileDragging: false,
-        show: false, // Hide the default panel to keep UI clean
+        geocoder: L.Control.Geocoder.nominatim(), // Adds Search Bar
+        show: true, // Show the panel so they can see/search
     }).on('routesfound', function (e) {
         const routes = e.routes;
         const summary = routes[0].summary;
-        log(`Route found: ${(summary.totalDistance / 1000).toFixed(1)} km`);
+        const distKm = (summary.totalDistance / 1000).toFixed(1);
+        const timeMin = Math.round(summary.totalTime / 60);
 
-        // Start Guidance
-        navigationActive = true;
-        // Get the first instruction step
-        if (routes[0].instructions.length > 0) {
-            // Simplified: Aim for the *end* of the first segment for bearing
-            const nextPoint = routes[0].coordinates[1]; // approximate
-            nextStepBearing = calculateBearing(startLat, startLng, nextPoint.lat, nextPoint.lng);
-            log(`Target Bearing: ${parseInt(nextStepBearing)}°`);
-        }
+        log(`Route: ${distKm} km, ${timeMin} min`);
+
+        // Show Confirmation
+        confirmPanel.style.display = 'block';
+        routeInfo.textContent = `Destination Found: ${distKm} km (${timeMin} min).`;
+        speak(`Route found. Distance is ${distKm} kilometers. Press Start Guidance to begin.`);
+
+        // Setup Start Button
+        startNavBtn.onclick = () => {
+            navigationActive = true;
+            confirmPanel.style.display = 'none';
+            speak("Starting Navigation. Walk forward.");
+
+            // Get first instruction
+            if (routes[0].instructions.length > 0) {
+                const nextPoint = routes[0].coordinates[1];
+                nextStepBearing = calculateBearing(startLat, startLng, nextPoint.lat, nextPoint.lng);
+            }
+        };
+
     }).addTo(map);
 }
 
@@ -264,23 +288,21 @@ function toDegrees(rad) { return rad * (180 / Math.PI); }
 setInterval(() => {
     if (!navigationActive || nextStepBearing === null) return;
 
-    // Calculate Deviation
     let delta = nextStepBearing - currentHeading;
-    // Normalize to -180 to +180
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
 
-    // Dead Zone: +/- 20 degrees is "Straight"
     if (delta > 20) {
         log(`[AUTO] Turn RIGHT (${parseInt(delta)}°)`);
+        speak("Turn Right"); // Audio feedback too
         sendCommand('R');
     } else if (delta < -20) {
         log(`[AUTO] Turn LEFT (${parseInt(delta)}°)`);
+        speak("Turn Left");
         sendCommand('L');
     } else {
-        // On course - silence or heartbeat pulse
-        // sendCommand('S'); // Optional: ensure motors off
+        // sendCommand('S');
     }
-}, 2000);
+}, 3000); // Check every 3s to be less annoying
 
 setTimeout(initMap, 1000);
