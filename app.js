@@ -141,8 +141,60 @@ async function sendCommand(cmd) {
     try {
         const encoder = new TextEncoder();
         await characteristic.writeValue(encoder.encode(cmd));
-        log(`Sent Command: ${cmd}`);
     } catch (error) {
         log('Send failed: ' + error);
     }
 }
+
+// --- MAP INTEGRATION (OpenStreetMap) ---
+const mapElement = document.getElementById('map');
+let map, userMarker;
+
+function initMap() {
+    if (!navigator.geolocation) {
+        log("Geolocation is not supported.");
+        return;
+    }
+
+    // Show the map container
+    mapElement.style.display = 'block';
+
+    // Initialize Map (Default view: 0,0)
+    try {
+        // Create map and use OpenStreetMap tiles
+        map = L.map('map').setView([0, 0], 2);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Track User Location
+        navigator.geolocation.watchPosition(
+            (position) => {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+
+                // Update Map View
+                if (!userMarker) {
+                    map.setView([lat, lng], 16); // Zoom in on first find
+                    userMarker = L.marker([lat, lng]).addTo(map);
+                    userMarker.bindPopup("You are here").openPopup();
+                    log(`GPS Locked: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+                } else {
+                    userMarker.setLatLng([lat, lng]);
+                    map.setView([lat, lng], 16); // Keep centered
+                }
+            },
+            (error) => {
+                log("GPS Error: " + error.message);
+                // If denied, maybe hide map or show error
+            },
+            { enableHighAccuracy: true }
+        );
+    } catch (e) {
+        console.error("Map Error:", e);
+    }
+}
+
+// Start Map immediately
+setTimeout(initMap, 1000); // Small delay to ensure DOM is ready

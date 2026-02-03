@@ -270,3 +270,24 @@ header p {
     text-transform: uppercase;
     letter-spacing: 1px;
 }
+
+/* Map Styling */
+#map {
+    width: 100%;
+    height: 250px;
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin-bottom: 1.5rem;
+    display: none;
+    /* Hidden until initialized */
+    z-index: 10;
+}
+
+/* Dark Mode Map Filter (Optional, makes OSM look dark) */
+.leaflet-layer,
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out,
+.leaflet-control-attribution {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}

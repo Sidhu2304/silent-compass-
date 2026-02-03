@@ -20,13 +20,16 @@ Since Web Bluetooth requires a secure context (HTTPS) or localhost, simply openi
 
 Host it for free on the internet!
 
-1.  Create a new Repository on GitHub (e.g., `silent-compass-app`).
-2.  Upload `index.html`, `style.css`, and `app.js`.
-3.  Go to **Settings** -> **Pages**.
-4.  Select `main` branch and click **Save**.
-5.  GitHub will give you a link (e.g., `https://yourname.github.io/silent-compass-app`).
-6.  Open that link on **ANY** phone (Android/iOS) or Laptop.
-7.  It will work perfectly with potential HTTPS requirements met automatically.
+### Direct Links
+*   **Repo Settings**: [Click Here to Configure Pages](https://github.com/Sidhu2304/silent-compass-/settings/pages)
+*   **Main Repo**: [https://github.com/Sidhu2304/silent-compass-](https://github.com/Sidhu2304/silent-compass-)
+
+### Steps to Activate
+1.  Click the **Repo Settings** link above.
+2.  Under **Build and deployment**, select **Source** -> `Deploy from a branch`.
+3.  Select Branch: **`main`** and Folder: **`/ (root)`**.
+4.  Click **Save**.
+5.  Wait 1 minute, then refresh the page. You will see your live link!
 
 ## Quick Demo (Simulation Mode)
 I have added a **"Simulation Mode"** button to the app.
