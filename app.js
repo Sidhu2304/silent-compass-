@@ -166,6 +166,16 @@ function initMap() {
         attribution: '&copy; OpenStreetMap'
     }).addTo(map);
 
+    // Allow setting destination by clicking map (Moved outside watchPosition)
+    map.on('click', function (e) {
+        if (userMarker) {
+            const pos = userMarker.getLatLng();
+            setDestination(pos.lat, pos.lng, e.latlng.lat, e.latlng.lng);
+        } else {
+            log("Waiting for GPS lock...");
+        }
+    });
+
     // 2. Track GPS Position
     navigator.geolocation.watchPosition(
         (position) => {
