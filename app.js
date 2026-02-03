@@ -146,55 +146,131 @@ async function sendCommand(cmd) {
     }
 }
 
-// --- MAP INTEGRATION (OpenStreetMap) ---
+// --- AUTOMATED NAVIGATION LOGIC ---
 const mapElement = document.getElementById('map');
-let map, userMarker;
+let map, userMarker, routingControl;
+let currentHeading = 0;
+let nextStepBearing = null;
+let navigationActive = false;
 
+// 1. Initialize Map
 function initMap() {
     if (!navigator.geolocation) {
         log("Geolocation is not supported.");
         return;
     }
-
-    // Show the map container
     mapElement.style.display = 'block';
+    // Center initially (will be updated by GPS)
+    map = L.map('map').setView([0, 0], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
 
-    // Initialize Map (Default view: 0,0)
-    try {
-        // Create map and use OpenStreetMap tiles
-        map = L.map('map').setView([0, 0], 2);
+    // 2. Track GPS Position
+    navigator.geolocation.watchPosition(
+        (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
+            if (!userMarker) {
+                userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You").openPopup();
+                map.setView([lat, lng], 16);
+            } else {
+                userMarker.setLatLng([lat, lng]);
+            }
 
-        // Track User Location
-        navigator.geolocation.watchPosition(
-            (position) => {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
+            // Allow setting destination by clicking map
+            map.on('click', function (e) {
+                setDestination(lat, lng, e.latlng.lat, e.latlng.lng);
+            });
+        },
+        (err) => log("GPS Error: " + err.message),
+        { enableHighAccuracy: true }
+    );
 
-                // Update Map View
-                if (!userMarker) {
-                    map.setView([lat, lng], 16); // Zoom in on first find
-                    userMarker = L.marker([lat, lng]).addTo(map);
-                    userMarker.bindPopup("You are here").openPopup();
-                    log(`GPS Locked: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-                } else {
-                    userMarker.setLatLng([lat, lng]);
-                    map.setView([lat, lng], 16); // Keep centered
-                }
-            },
-            (error) => {
-                log("GPS Error: " + error.message);
-                // If denied, maybe hide map or show error
-            },
-            { enableHighAccuracy: true }
-        );
-    } catch (e) {
-        console.error("Map Error:", e);
+    // 3. Track Compass Heading
+    if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', (event) => {
+            if (event.alpha) {
+                // Invert alpha for standard compass heading (0 = North)
+                // Note: This varies by device/browser. Simplified for demo.
+                currentHeading = 360 - event.alpha;
+            }
+        });
     }
 }
 
-// Start Map immediately
-setTimeout(initMap, 1000); // Small delay to ensure DOM is ready
+// 4. Calculate Route
+function setDestination(startLat, startLng, destLat, destLng) {
+    if (routingControl) {
+        map.removeControl(routingControl);
+    }
+
+    log("Calculating Route...");
+
+    routingControl = L.Routing.control({
+        waypoints: [
+            L.latLng(startLat, startLng),
+            L.latLng(destLat, destLng)
+        ],
+        routeWhileDragging: false,
+        show: false, // Hide the default panel to keep UI clean
+    }).on('routesfound', function (e) {
+        const routes = e.routes;
+        const summary = routes[0].summary;
+        log(`Route found: ${(summary.totalDistance / 1000).toFixed(1)} km`);
+
+        // Start Guidance
+        navigationActive = true;
+        // Get the first instruction step
+        if (routes[0].instructions.length > 0) {
+            // Simplified: Aim for the *end* of the first segment for bearing
+            const nextPoint = routes[0].coordinates[1]; // approximate
+            nextStepBearing = calculateBearing(startLat, startLng, nextPoint.lat, nextPoint.lng);
+            log(`Target Bearing: ${parseInt(nextStepBearing)}°`);
+        }
+    }).addTo(map);
+}
+
+// 5. Helper: Calculate Bearing between two points
+function calculateBearing(startLat, startLng, destLat, destLng) {
+    const startLatRad = toRadians(startLat);
+    const startLngRad = toRadians(startLng);
+    const destLatRad = toRadians(destLat);
+    const destLngRad = toRadians(destLng);
+
+    const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+    const x = Math.cos(startLatRad) * Math.sin(destLatRad) -
+        Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
+    let brng = Math.atan2(y, x);
+    brng = toDegrees(brng);
+    return (brng + 360) % 360;
+}
+
+function toRadians(deg) { return deg * (Math.PI / 180); }
+function toDegrees(rad) { return rad * (180 / Math.PI); }
+
+// 6. Guidance Loop (Runs every 2 seconds)
+setInterval(() => {
+    if (!navigationActive || nextStepBearing === null) return;
+
+    // Calculate Deviation
+    let delta = nextStepBearing - currentHeading;
+    // Normalize to -180 to +180
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+
+    // Dead Zone: +/- 20 degrees is "Straight"
+    if (delta > 20) {
+        log(`[AUTO] Turn RIGHT (${parseInt(delta)}°)`);
+        sendCommand('R');
+    } else if (delta < -20) {
+        log(`[AUTO] Turn LEFT (${parseInt(delta)}°)`);
+        sendCommand('L');
+    } else {
+        // On course - silence or heartbeat pulse
+        // sendCommand('S'); // Optional: ensure motors off
+    }
+}, 2000);
+
+setTimeout(initMap, 1000);
