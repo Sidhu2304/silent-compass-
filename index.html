@@ -43,30 +43,20 @@
         </header>
 
         <main>
+            <!-- Help Button -->
+            <button id="help-btn" class="help-btn" onclick="showGuidance()">
+                <span class="icon">?</span>
+                How to Use
+            </button>
+
             <div id="connection-panel">
                 <div class="status-indicator disconnected" id="status-dot"></div>
                 <span id="status-text">Disconnected</span>
                 <button id="connect-btn" class="primary-btn">
                     Connect Device
                 </button>
-                <button id="demo-btn" class="secondary-btn"
-                    style="margin-top: 10px; background: transparent; border: 1px solid var(--border); color: var(--text-muted);">
-                    Run Simulation Mode (No Hardware)
-                </button>
-                </button>
-            </div>
-
-            <!-- Map Container -->
-            <div id="map"
-                style="width: 100%; height: 300px; border-radius: 16px; margin-bottom: 1.5rem; display: none; z-index: 1;">
-            </div>
-
-            <!-- Route Confirmation Panel (Hidden by default) -->
-            <div id="confirmation-panel"
-                style="display:none; background: rgba(0, 50, 0, 0.8); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; text-align: center; border: 1px solid #4CAF50;">
-                <p id="route-info" style="margin: 0 0 10px 0; font-weight: bold; color: #fff;">Route Found</p>
-                <button id="start-nav-btn" class="primary-btn" style="background: #4CAF50;">
-                    START GUIDANCE
+                <button id="demo-btn" class="secondary-btn">
+                    Try Demo Mode
                 </button>
             </div>
 
@@ -74,25 +64,53 @@
                 <div class="direction-controls">
                     <button id="btn-left" class="nav-btn left">
                         <span class="icon">←</span>
-                        LEFT
+                        Turn Left
                     </button>
                     <button id="btn-right" class="nav-btn right">
-                        RIGHT
+                        Turn Right
                         <span class="icon">→</span>
                     </button>
                 </div>
 
                 <button id="btn-stop" class="stop-btn">
-                    STOP / CLEAR
+                    Stop
                 </button>
-
-                <div class="log-panel">
-                    <h3>Log</h3>
-                    <div id="log-output">Waiting for connection...</div>
-                </div>
             </div>
         </main>
     </div>
+
+    <!-- Guidance Modal -->
+    <div id="guidance-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeGuidance()">&times;</span>
+            <h2>How to Use Silent Compass</h2>
+            
+            <div class="step">
+                <h3>Step 1: Connect</h3>
+                <p>Click "Connect Device" and select "Silent Compass" from the Bluetooth list. If you don't have the device, click "Try Demo Mode" to test the app.</p>
+            </div>
+
+            <div class="step">
+                <h3>Step 2: Navigate</h3>
+                <p>Once connected, use the Turn Left and Turn Right buttons. The device will vibrate on your left or right side to show direction.</p>
+            </div>
+
+            <div class="step">
+                <h3>Step 3: Stop</h3>
+                <p>Press the Stop button to stop all vibrations.</p>
+            </div>
+
+            <div class="tip">
+                <h3>💡 Tips</h3>
+                <ul>
+                    <li>Keep your phone with you for Bluetooth connection</li>
+                    <li>The device works best when worn on your waist or chest</li>
+                    <li>Vibrations are short and clear - left side means turn left</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 

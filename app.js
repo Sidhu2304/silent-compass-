@@ -94,6 +94,32 @@ btnLeft.addEventListener('click', () => sendCommand('L'));
 btnRight.addEventListener('click', () => sendCommand('R'));
 btnStop.addEventListener('click', () => sendCommand('S'));
 
+// --- GUIDANCE MODAL FUNCTIONS ---
+function showGuidance() {
+    document.getElementById('guidance-modal').style.display = 'block';
+    log('Opening help guide...');
+}
+
+function closeGuidance() {
+    document.getElementById('guidance-modal').style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('guidance-modal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Show guidance on first visit
+if (!localStorage.getItem('silentCompassVisited')) {
+    setTimeout(() => {
+        showGuidance();
+        localStorage.setItem('silentCompassVisited', 'true');
+    }, 1000);
+}
+
 // --- SIMULATION MODE (For non-hardware demos) ---
 const demoBtn = document.getElementById('demo-btn');
 let isDemoMode = false;
