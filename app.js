@@ -20,6 +20,45 @@ const micBtn = document.getElementById('mic-btn');
 const voiceStatus = document.getElementById('voice-status');
 const guardianBtn = document.getElementById('guardian-btn');
 
+// --- TAB SWITCHING LOGIC ---
+window.switchTab = function (tabId, btnElement) {
+    // 1. Hide all views
+    document.querySelectorAll('.tab-view').forEach(view => {
+        view.classList.remove('active');
+    });
+    // 2. Show target view
+    document.getElementById(tabId).classList.add('active');
+
+    // 3. Update Bottom Nav Icons
+    if (btnElement) {
+        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+
+    // 4. Map Resize Bug Fix
+    if (tabId === 'view-map' && map) {
+        setTimeout(() => map.invalidateSize(), 100);
+    }
+}
+
+// Modify search to jump to map
+window.searchAndRoute = function (query) {
+    // Switch to Map Tab first
+    // Find the Map button in nav to set active state visually
+    const mapBtn = document.querySelectorAll('.nav-item')[1]; // Index 1 is Map
+    switchTab('view-map', mapBtn);
+
+    // Then search
+    if (typeof searchInLeaflet === 'function') {
+        searchInLeaflet(query);
+    } else {
+        // If function name varies, we define it clearly below or check existing name
+        // existing name is searchAndRoute(recursive? no, wait)
+        // Ah, I see I am overriding myself. Let's rename the *logic* function.
+        performSearch(query);
+    }
+}
+
 
 // Logger
 function log(msg) {
@@ -569,7 +608,7 @@ function handleVoiceCommand(text) {
     }
 }
 
-function searchAndRoute(query) {
+function performSearch(query) {
     // LEAFLET GEOCODER SEARCH
     if (!L.Control.Geocoder) return;
 
