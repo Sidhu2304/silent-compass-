@@ -634,6 +634,113 @@ function performSearch(query) {
     });
 }
 
+// --- NEARBY SEARCH LOGIC ---
+const resultsView = document.getElementById('results-view');
+const categoryGrid = document.getElementById('category-grid');
+const resultsList = document.getElementById('results-list');
+const resultsTitle = document.getElementById('results-title');
+const loadingSpinner = document.getElementById('loading-spinner');
+
+window.findNearby = async function (categoryName, searchTags) {
+    if (!userMarker) {
+        alert("Please enable GPS or wait for location lock first!");
+        return;
+    }
+
+    // UI Toggle
+    categoryGrid.style.display = 'none';
+    resultsView.style.display = 'block';
+    resultsList.innerHTML = '';
+    loadingSpinner.style.display = 'block';
+    resultsTitle.textContent = `${categoryName} Nearby`;
+
+    const userPos = userMarker.getLatLng();
+    // Bounding box ~2km (approx 0.02 degrees)
+    const viewbox = [
+        userPos.lng - 0.02, // left
+        userPos.lat + 0.02, // top
+        userPos.lng + 0.02, // right
+        userPos.lat - 0.02  // bottom
+    ].join(',');
+
+    try {
+        // We use 'q' for general query or specific tags. 
+        // Nominatim supports comma-separated for simple queries or we iterate.
+        // Let's use the first tag for the main query to keep it simple and reliable
+        // or just construct a query like "bus station near [lat,lon]"? 
+        // Better: use the viewbox and the query.
+
+        // Split tags and take first for query gives better results usually
+        const primaryTag = searchTags.split(',')[0].replace('_', ' ');
+
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${primaryTag}&viewbox=${viewbox}&bounded=1&limit=15`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        // Calculate distances & Sort
+        const dataWithDist = data.map(place => {
+            const dist = map.distance(userPos, [place.lat, place.lon]);
+            return { ...place, distance: dist };
+        });
+
+        // Sort by distance (nearest first)
+        dataWithDist.sort((a, b) => a.distance - b.distance);
+
+        loadingSpinner.style.display = 'none';
+        renderResults(dataWithDist);
+
+    } catch (error) {
+        loadingSpinner.style.display = 'none';
+        resultsList.innerHTML = '<div style="padding:15px; text-align:center;">Error fetching results. Please try again.</div>';
+        log("Search Error: " + error);
+    }
+}
+
+function renderResults(places) {
+    if (places.length === 0) {
+        resultsList.innerHTML = '<div style="padding:15px; text-align:center;">No results found nearby.</div>';
+        return;
+    }
+
+    places.forEach(place => {
+        const item = document.createElement('div');
+        item.className = 'result-item';
+
+        // Format Name (remove unnecessary commas)
+        const name = place.display_name.split(',')[0];
+        const distDisplay = place.distance < 1000
+            ? Math.round(place.distance) + ' m'
+            : (place.distance / 1000).toFixed(1) + ' km';
+
+        item.innerHTML = `
+            <div class="result-info">
+                <h3>${name}</h3>
+                <p>${distDisplay} • ${place.type}</p>
+            </div>
+            <button class="go-btn" onclick="startRouteTo(${place.lat}, ${place.lon})">Go</button>
+        `;
+        resultsList.appendChild(item);
+    });
+}
+
+window.closeResults = function () {
+    resultsView.style.display = 'none';
+    categoryGrid.style.display = 'grid';
+}
+
+window.startRouteTo = function (lat, lon) {
+    // 1. Switch to map
+    const mapBtn = document.querySelectorAll('.nav-item')[1];
+    switchTab('view-map', mapBtn);
+
+    // 2. Set Destination
+    if (userMarker) {
+        const userPos = userMarker.getLatLng();
+        setDestination(userPos.lat, userPos.lng, lat, lon);
+    }
+}
+
 // --- GUARDIAN FEATURE ---
 guardianBtn.addEventListener('click', () => {
     if (!userMarker) {

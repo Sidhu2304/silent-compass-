@@ -53,54 +53,54 @@
             </header>
 
             <div class="scroll-content">
-                <!-- Location Banner -->
-                <div class="location-banner">
-                    <div class="banner-icon">🛍️</div>
-                    <div class="banner-text">
-                        <h2>Metro Furniture World</h2>
-                        <p>Shop & Service • 117 m to Southeast</p>
+                <!-- Search Results (Hidden by default) -->
+                <div id="results-view" style="display: none;">
+                    <button class="back-btn" onclick="closeResults()">← Back to Categories</button>
+                    <h2 id="results-title">Results</h2>
+                    <div id="results-list"></div>
+                    <div id="loading-spinner" style="display:none; text-align:center; padding:20px;">Searching nearby...
                     </div>
                 </div>
 
                 <!-- Categories Grid -->
-                <div class="category-grid">
-                    <button class="cat-btn" onclick="searchAndRoute('Transport')">
+                <div id="category-grid" class="category-grid">
+                    <button class="cat-btn" onclick="findNearby('transport', 'bus_station,train_station,airport')">
                         <div class="cat-icon">🚌</div>
                         <span>Transport</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Bank')">
+                    <button class="cat-btn" onclick="findNearby('bank', 'bank,atm')">
                         <div class="cat-icon">🏧</div>
                         <span>Banks</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Health')">
+                    <button class="cat-btn" onclick="findNearby('hospital', 'hospital,clinic,pharmacy')">
                         <div class="cat-icon">🏥</div>
                         <span>Health</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Food')">
+                    <button class="cat-btn" onclick="findNearby('food', 'restaurant,cafe,fast_food')">
                         <div class="cat-icon">🍴</div>
                         <span>Food</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Shop')">
+                    <button class="cat-btn" onclick="findNearby('shop', 'supermarket,convenience,mall')">
                         <div class="cat-icon">🛍️</div>
                         <span>Stores</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Arts')">
+                    <button class="cat-btn" onclick="findNearby('arts', 'theatre,museum,gallery')">
                         <div class="cat-icon">🎭</div>
                         <span>Arts</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Public Building')">
+                    <button class="cat-btn" onclick="findNearby('public', 'library,post_office,government')">
                         <div class="cat-icon">🏢</div>
                         <span>Public</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Education')">
+                    <button class="cat-btn" onclick="findNearby('education', 'school,university,college')">
                         <div class="cat-icon">📏</div>
                         <span>Education</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Pub')">
+                    <button class="cat-btn" onclick="findNearby('bar', 'bar,pub,nightclub')">
                         <div class="cat-icon">🍸</div>
                         <span>Pubs</span>
                     </button>
-                    <button class="cat-btn" onclick="searchAndRoute('Hotel')">
+                    <button class="cat-btn" onclick="findNearby('hotel', 'hotel,motel,hostel')">
                         <div class="cat-icon">🛏️</div>
                         <span>Lodging</span>
                     </button>
@@ -197,7 +197,7 @@
         </div>
     </div>
 
-    <script src="app.js?v=1.2"></script>
+    <script src="app.js?v=1.3"></script>
 </body>
 
 </html>

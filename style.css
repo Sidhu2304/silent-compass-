@@ -346,3 +346,66 @@ body {
 .leaflet-tile {
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
+
+/* --- RESULTS LIST --- */
+#results-view {
+    padding: 15px;
+    padding-bottom: 80px;
+    /* Space for bottom nav */
+}
+
+.back-btn {
+    background: none;
+    border: none;
+    color: var(--primary-red);
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+#results-title {
+    font-size: 1.5rem;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #333;
+    padding-bottom: 10px;
+}
+
+.result-item {
+    background-color: var(--card-bg);
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.result-info h3 {
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+    color: var(--text-white);
+}
+
+.result-info p {
+    font-size: 0.9rem;
+    color: var(--text-gray);
+}
+
+.go-btn {
+    background-color: var(--primary-red);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    min-width: 70px;
+}
+
+.go-btn:active {
+    transform: scale(0.95);
+}
