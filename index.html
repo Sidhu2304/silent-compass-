@@ -46,8 +46,8 @@
             <!-- Help Button -->
             <button id="help-btn" class="help-btn" onclick="showGuidance()">
                 <span class="icon">?</span>
-                How to Use
-            </button>
+            </button> <!-- Minimized text to save space -->
+
 
             <div id="connection-panel">
                 <div class="status-indicator disconnected" id="status-dot"></div>
@@ -58,7 +58,14 @@
                 <button id="demo-btn" class="secondary-btn">
                     Try Demo Mode
                 </button>
+                <button id="guardian-btn" class="guardian-btn" title="Share Live Location">
+                    🛡️ Guardian
+                </button>
+
             </div>
+
+            <!-- Map Container -->
+            <div id="map"></div>
 
             <div id="control-panel" class="disabled">
                 <div class="direction-controls">
@@ -76,6 +83,23 @@
                     Stop
                 </button>
             </div>
+
+            <!-- Voice Control Button (Floating) -->
+            <button id="mic-btn" class="mic-btn">
+                <span class="icon">🎙️</span>
+            </button>
+            <div id="voice-status" class="voice-status">Say "Take me to..."</div>
+
+
+            <!-- Log Output -->
+            <div id="log-output" class="log-panel"></div>
+
+            <!-- Hidden elements for routing info if needed -->
+            <div id="confirmation-panel" style="display:none; text-align:center; margin-top:10px;">
+                <p id="route-info"></p>
+                <button id="start-nav-btn" class="primary-btn" style="font-size:0.9rem; padding: 10px;">Start
+                    Navigation</button>
+            </div>
         </main>
     </div>
 
@@ -84,15 +108,17 @@
         <div class="modal-content">
             <span class="close" onclick="closeGuidance()">&times;</span>
             <h2>How to Use Silent Compass</h2>
-            
+
             <div class="step">
                 <h3>Step 1: Connect</h3>
-                <p>Click "Connect Device" and select "Silent Compass" from the Bluetooth list. If you don't have the device, click "Try Demo Mode" to test the app.</p>
+                <p>Click "Connect Device" and select "Silent Compass" from the Bluetooth list. If you don't have the
+                    device, click "Try Demo Mode" to test the app.</p>
             </div>
 
             <div class="step">
                 <h3>Step 2: Navigate</h3>
-                <p>Once connected, use the Turn Left and Turn Right buttons. The device will vibrate on your left or right side to show direction.</p>
+                <p>Once connected, use the Turn Left and Turn Right buttons. The device will vibrate on your left or
+                    right side to show direction.</p>
             </div>
 
             <div class="step">

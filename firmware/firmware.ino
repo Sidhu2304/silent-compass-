@@ -1,16 +1,16 @@
 /*
  * Silent Compass - Firmware
  * Board: ESP32 Dev Module
- * 
+ *
  * Description:
  * Creates a BLE Server that listens for navigation commands ('L', 'R', 'S').
  * Controls 2 vibration motors connected to GPIO pins.
  */
 
+#include <BLE2902.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
-#include <BLE2902.h>
 
 // --- CONFIGURATION ---
 // GPIO Pins for Motors
@@ -18,12 +18,12 @@ const int PIN_MOTOR_LEFT = 26;
 const int PIN_MOTOR_RIGHT = 27;
 
 // UUIDs (Must match the App.js)
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 // ---------------------
 
-BLEServer* pServer = NULL;
-BLECharacteristic* pCharacteristic = NULL;
+BLEServer *pServer = NULL;
+BLECharacteristic *pCharacteristic = NULL;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
 
@@ -39,7 +39,7 @@ void vibrateLeft() {
   digitalWrite(PIN_MOTOR_LEFT, HIGH);
   Serial.println("Vibrating LEFT");
   // Auto-stop after 500ms safety (optional, but good for simple feedback)
-  delay(500); 
+  delay(500);
   stopMotors();
 }
 
@@ -52,36 +52,63 @@ void vibrateRight() {
 }
 
 // BLE Callback Class
-class MyServerCallbacks: public BLEServerCallbacks {
-    void onConnect(BLEServer* pServer) {
-      deviceConnected = true;
-      Serial.println("Device Connected");
-    };
+class MyServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer *pServer) {
+    deviceConnected = true;
+    Serial.println("Device Connected");
+  };
 
-    void onDisconnect(BLEServer* pServer) {
-      deviceConnected = false;
-      Serial.println("Device Disconnected");
-    }
+  void onDisconnect(BLEServer *pServer) {
+    deviceConnected = false;
+    Serial.println("Device Disconnected");
+  }
 };
 
-class MyCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string value = pCharacteristic->getValue();
+class MyCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    std::string value = pCharacteristic->getValue();
 
-      if (value.length() > 0) {
-        char cmd = value[0]; // Get first character
-        Serial.print("Received Command: ");
-        Serial.println(cmd);
+    if (value.length() > 0) {
+      char cmd = value[0]; // Get first character
+      Serial.print("Received Command: ");
+      Serial.println(cmd);
 
-        if (cmd == 'L') {
-          vibrateLeft();
-        } else if (cmd == 'R') {
-           vibrateRight();
-        } else if (cmd == 'S') {
-           stopMotors();
+      if (cmd == 'L') {
+        // Left: 2 Short Pulses
+        // Pulse 1
+        digitalWrite(PIN_MOTOR_LEFT, HIGH);
+        delay(200);
+        digitalWrite(PIN_MOTOR_LEFT, LOW);
+        delay(100);
+        // Pulse 2
+        digitalWrite(PIN_MOTOR_LEFT, HIGH);
+        delay(200);
+        digitalWrite(PIN_MOTOR_LEFT, LOW);
+        Serial.println("Vibrating LEFT (Double Pulse)");
+
+      } else if (cmd == 'R') {
+        // Right: 1 Long Pulse
+        digitalWrite(PIN_MOTOR_RIGHT, HIGH);
+        delay(800);
+        digitalWrite(PIN_MOTOR_RIGHT, LOW);
+        Serial.println("Vibrating RIGHT (Long Pulse)");
+
+      } else if (cmd == 'S') {
+        stopMotors();
+      } else if (cmd == 'W') {
+        // Warning / Obstacle: Continuous vibration until Stop or Timeout
+        // For safety, we just do a very aggressive pattern
+        for (int i = 0; i < 5; i++) {
+          digitalWrite(PIN_MOTOR_LEFT, HIGH);
+          digitalWrite(PIN_MOTOR_RIGHT, HIGH);
+          delay(150);
+          digitalWrite(PIN_MOTOR_LEFT, LOW);
+          digitalWrite(PIN_MOTOR_RIGHT, LOW);
+          delay(100);
         }
       }
     }
+  }
 };
 
 void setup() {
@@ -105,10 +132,8 @@ void setup() {
 
   // Create the BLE Characteristic
   pCharacteristic = pService->createCharacteristic(
-                      CHARACTERISTIC_UUID,
-                      BLECharacteristic::PROPERTY_READ   |
-                      BLECharacteristic::PROPERTY_WRITE  
-                    );
+      CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 
   pCharacteristic->setCallbacks(new MyCallbacks());
 
@@ -119,7 +144,8 @@ void setup() {
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issues
+  pAdvertising->setMinPreferred(
+      0x06); // functions that help with iPhone connections issues
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
   Serial.println("Waiting for a client connection to notify...");
@@ -128,15 +154,15 @@ void setup() {
 void loop() {
   // Connection management
   if (!deviceConnected && oldDeviceConnected) {
-      delay(500); // give the bluetooth stack the chance to get things ready
-      pServer->startAdvertising(); // restart advertising
-      Serial.println("start advertising");
-      oldDeviceConnected = deviceConnected;
+    delay(500); // give the bluetooth stack the chance to get things ready
+    pServer->startAdvertising(); // restart advertising
+    Serial.println("start advertising");
+    oldDeviceConnected = deviceConnected;
   }
   // connecting
   if (deviceConnected && !oldDeviceConnected) {
-      // do stuff here on connecting
-      oldDeviceConnected = deviceConnected;
+    // do stuff here on connecting
+    oldDeviceConnected = deviceConnected;
   }
   delay(10);
 }

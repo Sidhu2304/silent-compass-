@@ -66,11 +66,21 @@ graph TD
     *   *Troubleshooting*: If `file://` access blocks Bluetooth, you may need to use a simple local server (VS Code "Live Server" extension is best).
 
 ### How to Use
-1.  Power on your ESP32 (LED should be on).
-2.  On the Web App, click **"Connect Device"**.
-3.  Select **"Silent Compass"** from the list of Bluetooth devices.
-4.  Once connected, press **LEFT** or **RIGHT** on the screen.
-5.  You should feel the corresponding motor vibrate!
+
+1.  **Power On**: Turn on your ESP32 (LED should be on).
+2.  **Connect**: On the Web App, click **"Connect Device"** and select **"Silent Compass"**.
+3.  **Navigation**:
+    *   **Set Destination**: Tap anywhere on the map to set a destination. The route will be calculated automatically.
+    *   **Start Guidance**: Click "Start Navigation". The app will guide you with vibrations:
+        *   **Left Turn**: Left Motor vibrates.
+        *   **Right Turn**: Right Motor vibrates.
+    *   **Risky Areas**:
+        *   **Add Risky Area**: Shift-Click on the map to mark a spot as "Risky" (Red Circle).
+        *   **Warning**: If you walk into a Risky Area, **BOTH motors will pulse 3 times** to warn you.
 
 ## 🎓 Demo Explanation (What to say)
-"This project solves the problem of distraction for visually impaired users. Instead of listening to a voice saying 'Turn Left' while trying to listen to traffic, the user feels a simple vibration on their left side. We used an ESP32 for the brain and a custom Web Bluetooth controller to demonstrate the wireless communication."
+"This project solves the problem of distraction for visually impaired users. Instead of listening to a voice saying 'Turn Left' while trying to listen to traffic, the user feels a simple vibration.
+
+We added a **Smart Warning System**:
+1.  **Automatic Turns**: The phone tracks your GPS and compass, sending 'Left' or 'Right' signals automatically before you turn.
+2.  **Risky Areas**: We can mark dangerous zones (like construction). If the user gets close, the device vibrates urgently (pulsing both motors) to warn them to stop."

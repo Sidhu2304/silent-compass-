@@ -191,7 +191,8 @@ header p {
 }
 
 /* Simplified Button Styles */
-.primary-btn, .secondary-btn {
+.primary-btn,
+.secondary-btn {
     padding: 14px 28px;
     border-radius: 12px;
     font-size: 1rem;
@@ -448,4 +449,130 @@ header p {
 .leaflet-control-zoom-out,
 .leaflet-control-attribution {
     filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+
+/* Risky Area Alert Animation */
+@keyframes flashRed {
+    0% {
+        background-color: rgba(255, 0, 0, 0.0);
+    }
+
+    50% {
+        background-color: rgba(255, 0, 0, 0.5);
+    }
+
+    100% {
+        background-color: rgba(255, 0, 0, 0.0);
+    }
+}
+
+.risky-alert {
+    animation: flashRed 1s ease-in-out 3;
+    /* Flash 3 times */
+    pointer-events: none;
+    /* Let clicks pass through */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+}
+
+/* --- Voice Control & Guardian Styles --- */
+
+.help-btn {
+    /* Adjusted to be smaller */
+    padding: 8px 12px;
+}
+
+.guardian-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    margin-left: 5px;
+}
+
+.guardian-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #4CAF50;
+}
+
+/* Floating Mic Button */
+.mic-btn {
+    position: fixed;
+    bottom: 180px;
+    /* Above control panel */
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #FF4B4B, #FF0000);
+    /* Vibrant Red */
+    border: none;
+    box-shadow: 0 4px 15px rgba(255, 0, 0, 0.4);
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 1000;
+    display: flex;
+    /* Flex to center icon */
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.mic-btn:active {
+    transform: scale(0.95);
+}
+
+.mic-btn.listening {
+    animation: pulse-red 1.5s infinite;
+    background: #ff0000;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 20px rgba(255, 0, 0, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 0, 0, 0);
+    }
+}
+
+.voice-status {
+    position: fixed;
+    bottom: 250px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 1000;
+}
+
+.voice-status.visible {
+    opacity: 1;
+}
+
+/* Adjust layout for mobile */
+@media (max-width: 600px) {
+    .mic-btn {
+        bottom: 160px;
+        /* Adjust based on control panel height */
+    }
 }
