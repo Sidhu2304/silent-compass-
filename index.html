@@ -1,203 +1,400 @@
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Silent Compass</title>
+    <title>NavApp</title>
 
-    <!-- PWA / Icons -->
+    <!-- PWA -->
     <link rel="icon" type="image/svg+xml" href="icon.svg">
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#050510">
+    <meta name="theme-color" content="#0e1117">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="Haptic Navigation Controller for Silent Compass">
+    <meta name="description" content="Accessible Haptic Navigation for Visually Impaired">
 
-    <!-- Styles -->
-    <link rel="stylesheet" href="style.css?v=1.1">
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 
-    <!-- Leaflet Map -->
+    <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
     <!-- Leaflet Routing Machine -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"/>
     <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
 
-    <!-- Leaflet Geocoder (Address Search) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <!-- Leaflet Geocoder -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css"/>
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+    <!-- App Styles -->
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <div class="mobile-wrapper">
 
-        <!-- View 1: EXPLORATION (Home) -->
-        <div id="view-exploration" class="tab-view active">
-            <header class="top-bar">
-                <div class="logo-area">
-                    <h1>Exploration</h1>
-                </div>
-                <div class="top-icons">
-                    <button class="icon-btn">⏸</button>
-                    <button class="icon-btn">🎯</button>
-                    <button class="icon-btn">🔍</button>
-                    <button class="icon-btn">☰</button>
-                </div>
-            </header>
+    <!-- ══════════════════════════════════
+         VIEW 1 — EXPLORATION
+    ══════════════════════════════════ -->
+    <div id="view-exploration" class="tab-view active" role="main" aria-label="Exploration">
 
-            <div class="scroll-content">
-                <!-- Search Results (Hidden by default) -->
-                <div id="results-view" style="display: none;">
-                    <button class="back-btn" onclick="closeResults()">← Back to Categories</button>
-                    <h2 id="results-title">Results</h2>
-                    <div id="results-list"></div>
-                    <div id="loading-spinner" style="display:none; text-align:center; padding:20px;">Searching nearby...
-                    </div>
-                </div>
+        <header class="top-bar">
+            <h1>Explore</h1>
+            <button class="icon-btn"
+                    onclick="showGuidance()"
+                    aria-label="Help guide. Double-tap to open."
+                    data-sr-label="Help guide. Double-tap to open.">?</button>
+        </header>
 
-                <!-- Categories Grid -->
-                <div id="category-grid" class="category-grid">
-                    <button class="cat-btn" onclick="findNearby('transport', 'bus_station,train_station,airport')">
-                        <div class="cat-icon">🚌</div>
-                        <span>Transport</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('bank', 'bank,atm')">
-                        <div class="cat-icon">🏧</div>
-                        <span>Banks</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('hospital', 'hospital,clinic,pharmacy')">
-                        <div class="cat-icon">🏥</div>
-                        <span>Health</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('food', 'restaurant,cafe,fast_food')">
-                        <div class="cat-icon">🍴</div>
-                        <span>Food</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('shop', 'supermarket,convenience,mall')">
-                        <div class="cat-icon">🛍️</div>
-                        <span>Stores</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('arts', 'theatre,museum,gallery')">
-                        <div class="cat-icon">🎭</div>
-                        <span>Arts</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('public', 'library,post_office,government')">
-                        <div class="cat-icon">🏢</div>
-                        <span>Public</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('education', 'school,university,college')">
-                        <div class="cat-icon">📏</div>
-                        <span>Education</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('bar', 'bar,pub,nightclub')">
-                        <div class="cat-icon">🍸</div>
-                        <span>Pubs</span>
-                    </button>
-                    <button class="cat-btn" onclick="findNearby('hotel', 'hotel,motel,hostel')">
-                        <div class="cat-icon">🛏️</div>
-                        <span>Lodging</span>
-                    </button>
+        <div class="scroll-content">
+
+            <!-- Location Banner -->
+            <div class="location-banner"
+                 role="button" tabindex="0"
+                 aria-label="Your current location. Touch to hear address."
+                 data-sr-label="Your current location. Double-tap to hear address.">
+                <div class="banner-icon">📍</div>
+                <div class="banner-text">
+                    <h2 id="banner-location">Locating…</h2>
+                    <p id="banner-sublocation">GPS searching</p>
                 </div>
             </div>
-        </div>
 
-        <!-- View 2: MAP (Navigation) -->
-        <div id="view-map" class="tab-view">
-            <header class="top-bar">
-                <h1>Navigation</h1>
-            </header>
-
-            <div id="map"></div>
-
-            <div id="control-panel" class="disabled">
-                <div class="direction-controls">
-                    <button id="btn-left" class="nav-btn left">
-                        <span class="icon">←</span>
-                    </button>
-                    <button id="btn-right" class="nav-btn right">
-                        <span class="icon">→</span>
-                    </button>
+            <!-- Results view (hidden by default) -->
+            <div id="results-view" style="display:none;" role="region" aria-label="Search results">
+                <button class="back-btn"
+                        onclick="closeResults()"
+                        aria-label="Back to categories. Double-tap to go back."
+                        data-sr-label="Back to categories. Double-tap to go back.">
+                    ← Back
+                </button>
+                <h2 id="results-title"></h2>
+                <div id="loading-spinner" style="display:none;">
+                    <div class="spinner-ring"></div>
+                    <div>Searching nearby…</div>
                 </div>
-                <button id="btn-stop" class="stop-btn">Stop</button>
+                <div id="results-list" role="list" aria-label="Nearby places"></div>
             </div>
-            <!-- Voice Control Button (Floating) -->
-            <button id="mic-btn" class="mic-btn">
-                <span class="icon">🎙️</span>
-            </button>
-            <div id="voice-status" class="voice-status">Say "Take me to..."</div>
-        </div>
 
-        <!-- View 3: SETTINGS -->
-        <div id="view-settings" class="tab-view">
-            <header class="top-bar">
-                <h1>Settings</h1>
-            </header>
-            <div class="padding-container">
-                <div id="connection-panel" class="settings-card">
-                    <h3>Device Connection</h3>
-                    <div class="status-indicator disconnected" id="status-dot"></div>
-                    <span id="status-text">Disconnected</span>
-                    <br><br>
-                    <button id="connect-btn" class="primary-btn">Connect Device</button>
-                    <button id="demo-btn" class="secondary-btn">Try Demo Mode</button>
-                </div>
+            <!-- Category Grid -->
+            <div class="section-label">Find Nearby Places</div>
+            <div id="category-grid" class="category-grid" role="list" aria-label="Place categories">
 
-                <div class="settings-card">
-                    <h3>Tools</h3>
-                    <button id="guardian-btn" class="guardian-btn" title="Share Live Location">
-                        🛡️ Guardian Mode
-                    </button>
-                </div>
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Transport')"
+                        aria-label="Transport. Bus stops and stations. Double-tap to search."
+                        data-sr-label="Transport. Bus stops and stations. Double-tap to search.">
+                    <div class="cat-icon">🚌</div>
+                    <span class="cat-label">Transport</span>
+                </button>
 
-                <div class="settings-card">
-                    <h3>Logs</h3>
-                    <div id="log-output" class="log-panel"></div>
-                </div>
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Banks')"
+                        aria-label="Banks and ATMs. Double-tap to search."
+                        data-sr-label="Banks and ATMs. Double-tap to search.">
+                    <div class="cat-icon">🏦</div>
+                    <span class="cat-label">Banks</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Health')"
+                        aria-label="Health. Hospitals, clinics and pharmacies. Double-tap to search."
+                        data-sr-label="Health. Hospitals clinics and pharmacies. Double-tap to search.">
+                    <div class="cat-icon">🏥</div>
+                    <span class="cat-label">Health</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Food')"
+                        aria-label="Food. Restaurants and cafes. Double-tap to search."
+                        data-sr-label="Food. Restaurants and cafes. Double-tap to search.">
+                    <div class="cat-icon">🍽️</div>
+                    <span class="cat-label">Food</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Stores')"
+                        aria-label="Stores. Supermarkets and shops. Double-tap to search."
+                        data-sr-label="Stores. Supermarkets and shops. Double-tap to search.">
+                    <div class="cat-icon">🛒</div>
+                    <span class="cat-label">Stores</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Education')"
+                        aria-label="Education. Schools colleges and universities. Double-tap to search."
+                        data-sr-label="Education. Schools colleges and universities. Double-tap to search.">
+                    <div class="cat-icon">🎓</div>
+                    <span class="cat-label">Education</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Public')"
+                        aria-label="Public services. Police post office and government. Double-tap to search."
+                        data-sr-label="Public services. Police post office and government. Double-tap to search.">
+                    <div class="cat-icon">🏛️</div>
+                    <span class="cat-label">Public</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Lodging')"
+                        aria-label="Lodging. Hotels and guest houses. Double-tap to search."
+                        data-sr-label="Lodging. Hotels and guest houses. Double-tap to search.">
+                    <div class="cat-icon">🏨</div>
+                    <span class="cat-label">Lodging</span>
+                </button>
+
+                <button class="cat-btn" role="listitem"
+                        onclick="findNearby('Arts')"
+                        aria-label="Arts. Museums galleries and theatres. Double-tap to search."
+                        data-sr-label="Arts. Museums galleries and theatres. Double-tap to search.">
+                    <div class="cat-icon">🎭</div>
+                    <span class="cat-label">Arts</span>
+                </button>
+
             </div>
         </div>
+    </div>
 
-        <!-- Bottom Navigation -->
-        <nav class="bottom-nav">
-            <button class="nav-item active" onclick="switchTab('view-exploration', this)">
-                <div class="nav-icon">🧭</div>
-                <span>Exploration</span>
-            </button>
-            <button class="nav-item" onclick="switchTab('view-map', this)">
-                <div class="nav-icon">★</div>
-                <!-- Star icon often used for favorites, but using for map/favs here to match layout feel or use Map icon -->
-                <span>Map</span>
-            </button>
-            <button class="nav-item" onclick="switchTab('view-settings', this)">
-                <div class="nav-icon">⚙️</div>
-                <span>Settings</span>
-            </button>
-        </nav>
+    <!-- ══════════════════════════════════
+         VIEW 2 — MAP
+    ══════════════════════════════════ -->
+    <div id="view-map" class="tab-view" role="main" aria-label="Navigation map">
 
-        <!-- Hidden elements -->
+        <div id="map" role="application" aria-label="Interactive navigation map"></div>
+
+        <!-- Confirmation panel (shown after route is found) -->
         <div id="confirmation-panel" style="display:none;">
             <p id="route-info"></p>
-            <button id="start-nav-btn">Start</button>
+            <button id="start-nav-btn"
+                    aria-label="Start navigation. Double-tap to begin."
+                    data-sr-label="Start navigation. Double-tap to begin.">
+                Start Guidance
+            </button>
         </div>
+
+        <!-- BLE Control Panel -->
+        <div id="control-panel" class="disabled">
+
+            <div class="connection-row">
+                <div class="status-indicator disconnected" id="status-dot"></div>
+                <span id="status-text">Disconnected</span>
+            </div>
+
+            <div class="button-row">
+                <button id="connect-btn"
+                        aria-label="Connect wristband device. Double-tap to connect."
+                        data-sr-label="Connect Bluetooth wristband. Double-tap to connect.">
+                    Connect Device
+                </button>
+                <button id="demo-btn"
+                        aria-label="Demo simulation mode. Double-tap to start."
+                        data-sr-label="Demo mode. Double-tap to start simulation.">
+                    Demo
+                </button>
+            </div>
+
+            <div class="direction-controls">
+                <button id="btn-left" class="nav-btn left"
+                        aria-label="Left turn vibration. Double-tap to activate."
+                        data-sr-label="Left turn vibration. Double-tap to activate.">
+                    <span class="icon">⬅</span>
+                    <span style="font-size:0.72rem;">Left</span>
+                </button>
+                <button id="btn-right" class="nav-btn right"
+                        aria-label="Right turn vibration. Double-tap to activate."
+                        data-sr-label="Right turn vibration. Double-tap to activate.">
+                    <span class="icon">➡</span>
+                    <span style="font-size:0.72rem;">Right</span>
+                </button>
+            </div>
+
+            <button id="btn-stop" class="stop-btn"
+                    aria-label="Stop navigation. Double-tap to stop."
+                    data-sr-label="Stop navigation. Double-tap to stop.">
+                Stop Navigation
+            </button>
+        </div>
+
+        <!-- Mic FAB -->
+        <button id="mic-btn" class="mic-btn"
+                aria-label="Voice command. Say take me to a place. Double-tap to speak."
+                data-sr-label="Voice command button. Say take me to a place. Double-tap to activate.">
+            🎤
+        </button>
+        <div id="voice-status" class="voice-status" role="status" aria-live="polite"></div>
 
     </div>
 
-    <!-- Guidance Modal -->
-    <div id="guidance-modal" class="modal">
+    <!-- ══════════════════════════════════
+         VIEW 3 — SETTINGS
+    ══════════════════════════════════ -->
+    <div id="view-settings" class="tab-view" role="main" aria-label="Settings">
+
+        <header class="top-bar">
+            <h1>Settings</h1>
+        </header>
+
+        <div class="settings-wrap">
+
+            <!-- Accessibility / Screen Reader -->
+            <div class="settings-card">
+                <h3>Accessibility</h3>
+                <div class="sr-toggle-row">
+                    <div>
+                        <label for="sr-toggle" style="font-size:0.92rem;font-weight:600;cursor:pointer;">
+                            Screen Reader Mode
+                        </label>
+                        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">
+                            Touch once to hear what a button does.<br>
+                            Double-tap to activate it.
+                        </p>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                        <span id="sr-status" style="font-size:0.8rem;color:var(--text-muted);">Off</span>
+                        <label class="toggle-switch" aria-label="Screen reader toggle">
+                            <input type="checkbox" id="sr-toggle">
+                            <span class="toggle-thumb"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Guardian -->
+            <div class="settings-card">
+                <h3>Guardian</h3>
+                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
+                    Save your guardian's WhatsApp number. They will receive your location via WhatsApp.
+                </p>
+                <div class="input-row">
+                    <input type="tel"
+                           id="guardian-number"
+                           class="phone-input"
+                           placeholder="+91 9876543210"
+                           aria-label="Guardian phone number">
+                    <button class="save-btn"
+                            id="guardian-save-btn"
+                            aria-label="Save guardian number."
+                            data-sr-label="Save guardian phone number. Double-tap to save.">
+                        Save
+                    </button>
+                </div>
+                <button class="danger-btn"
+                        id="guardian-sos-btn"
+                        aria-label="Send SOS emergency location to guardian."
+                        data-sr-label="Emergency SOS. Sends your location to guardian via WhatsApp. Double-tap to send.">
+                    🆘 Send SOS Location
+                </button>
+                <button class="secondary-btn"
+                        id="guardian-track-btn"
+                        aria-label="Toggle live location tracking."
+                        data-sr-label="Live tracking. Sends your location every 5 minutes. Double-tap to toggle.">
+                    Start Live Tracking
+                </button>
+                <p class="track-status">Tracking: <span id="guardian-track-status">Off</span></p>
+            </div>
+
+            <!-- Device -->
+            <div class="settings-card">
+                <h3>Wristband Device</h3>
+                <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
+                    Connect your ESP32 haptic wristband via Bluetooth.
+                </p>
+                <button class="primary-btn"
+                        onclick="document.getElementById('connect-btn').click()"
+                        aria-label="Connect Bluetooth wristband."
+                        data-sr-label="Connect Bluetooth wristband. Double-tap to connect.">
+                    Connect Wristband
+                </button>
+                <button class="secondary-btn"
+                        onclick="document.getElementById('demo-btn').click()"
+                        aria-label="Start demo simulation mode."
+                        data-sr-label="Demo mode. Double-tap to start simulation.">
+                    Try Demo Mode
+                </button>
+            </div>
+
+            <!-- Debug Log -->
+            <div class="settings-card">
+                <h3>Debug Log</h3>
+                <div id="log-output"
+                     style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+                            padding:10px;height:130px;overflow-y:auto;
+                            font-family:'Courier New',monospace;font-size:0.72rem;
+                            color:var(--text-muted);line-height:1.7;"
+                     aria-live="polite" aria-label="Debug log"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════
+         BOTTOM NAV
+    ══════════════════════════════════ -->
+    <nav class="bottom-nav" aria-label="Main navigation">
+        <button class="nav-item active"
+                onclick="switchTab('view-exploration', this)"
+                aria-label="Explore tab. Find nearby places."
+                data-sr-label="Explore tab. Find nearby places. Double-tap to switch.">
+            <div class="nav-icon">🧭</div>
+            <span>Explore</span>
+        </button>
+        <button class="nav-item"
+                onclick="switchTab('view-map', this)"
+                aria-label="Map tab. Navigation map."
+                data-sr-label="Map tab. Navigation map. Double-tap to switch.">
+            <div class="nav-icon">🗺️</div>
+            <span>Map</span>
+        </button>
+        <button class="nav-item"
+                onclick="switchTab('view-settings', this)"
+                aria-label="Settings tab."
+                data-sr-label="Settings tab. Double-tap to switch.">
+            <div class="nav-icon">⚙️</div>
+            <span>Settings</span>
+        </button>
+    </nav>
+
+    <!-- ══════════════════════════════════
+         GUIDANCE MODAL
+    ══════════════════════════════════ -->
+    <div id="guidance-modal" class="modal" role="dialog" aria-modal="true" aria-label="Help guide">
         <div class="modal-content">
-            <span class="close" onclick="closeGuidance()">&times;</span>
+            <button class="modal-close" onclick="closeGuidance()" aria-label="Close help">✕</button>
             <h2>How to Use</h2>
-            <p>1. Connect Device in Settings.<br>2. Choose a category or search.<br>3. Follow haptic cues.</p>
+            <p><strong>Finding Places</strong><br>
+               Tap any category on the Explore tab to find places within 4 km.</p>
+            <br>
+            <p><strong>Screen Reader Mode</strong> (Settings → Accessibility)<br>
+               Touch once → Hear what the button does.<br>
+               Double-tap → Activate it.</p>
+            <br>
+            <p><strong>Voice Commands</strong><br>
+               Tap the mic and say:<br>
+               "Take me to hospital"<br>
+               "Find banks"<br>
+               "Where am I"<br>
+               "Stop navigation"</p>
+            <br>
+            <p><strong>Wristband Vibration</strong></p>
+            <ul>
+                <li>Left buzz → Turn left ahead</li>
+                <li>Right buzz → Turn right ahead</li>
+                <li>Long double buzz → Arrived</li>
+            </ul>
+            <br>
+            <p><strong>Guardian</strong><br>
+               Save a phone number in Settings. Use SOS to send your location instantly, or Start Live Tracking to share every 5 minutes via WhatsApp.</p>
         </div>
     </div>
 
-    <script src="app.js?v=2.0"></script>
-</body>
+    <script src="app.js"></script>
 
+</body>
 </html>
