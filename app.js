@@ -1,724 +1,594 @@
-// UUIDs must match the ESP32 Firmware
+// ============================================================
+// SILENT COMPASS — app.js (v2.0 — Fixed & Enhanced)
+// ============================================================
+
+// --- BLE CONFIGURATION ---
 const SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 const CHARACTERISTIC_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 
 let device, server, service, characteristic;
+let isDemoMode = false;
 
-// UI Elements
-const connectBtn = document.getElementById('connect-btn');
-const statusDot = document.getElementById('status-dot');
-const statusText = document.getElementById('status-text');
-const controlPanel = document.getElementById('control-panel');
-const logOutput = document.getElementById('log-output');
+// --- STATE ---
+let map, userMarker, routingControl, destinationPoint;
+let currentHeading = 0;
+let navigationActive = false;
+let currentRoute = null;
+let lastInstructionIndex = 0;
+let lastSpokenInstruction = '';
+let posBuffer = [];           // GPS smoothing buffer
+let lastPos = null;           // For GPS-derived heading
+let navInterval = null;
 
-const btnLeft = document.getElementById('btn-left');
-const btnRight = document.getElementById('btn-right');
-const btnStop = document.getElementById('btn-stop');
+// --- OSM TAG MAP ---
+const osmTagMap = {
+    'Banks':      ['amenity', 'bank'],
+    'ATMs':       ['amenity', 'atm'],
+    'Health':     ['amenity', 'hospital'],
+    'Pharmacy':   ['amenity', 'pharmacy'],
+    'Food':       ['amenity', 'restaurant'],
+    'Cafe':       ['amenity', 'cafe'],
+    'Transport':  ['highway', 'bus_stop'],
+    'Education':  ['amenity', 'school'],
+    'Stores':     ['shop', 'supermarket'],
+    'Public':     ['amenity', 'toilets'],
+    'Lodging':    ['tourism', 'hotel'],
+    'Pubs':       ['amenity', 'bar'],
+    'Arts':       ['tourism', 'museum'],
+    'Police':     ['amenity', 'police'],
+    'Fuel':       ['amenity', 'fuel'],
+};
 
-// --- NEW FEATURES UI ---
-const micBtn = document.getElementById('mic-btn');
-const voiceStatus = document.getElementById('voice-status');
-const guardianBtn = document.getElementById('guardian-btn');
+// --- UI ELEMENTS ---
+const connectBtn       = document.getElementById('connect-btn');
+const statusDot        = document.getElementById('status-dot');
+const statusText       = document.getElementById('status-text');
+const controlPanel     = document.getElementById('control-panel');
+const logOutput        = document.getElementById('log-output');
+const btnLeft          = document.getElementById('btn-left');
+const btnRight         = document.getElementById('btn-right');
+const btnStop          = document.getElementById('btn-stop');
+const micBtn           = document.getElementById('mic-btn');
+const voiceStatus      = document.getElementById('voice-status');
+const guardianBtn      = document.getElementById('guardian-btn');
+const demoBtn          = document.getElementById('demo-btn');
+const resultsView      = document.getElementById('results-view');
+const categoryGrid     = document.getElementById('category-grid');
+const resultsList      = document.getElementById('results-list');
+const resultsTitle     = document.getElementById('results-title');
+const loadingSpinner   = document.getElementById('loading-spinner');
+const confirmPanel     = document.getElementById('confirmation-panel');
+const routeInfo        = document.getElementById('route-info');
+const startNavBtn      = document.getElementById('start-nav-btn');
 
-// --- TAB SWITCHING LOGIC ---
-window.switchTab = function (tabId, btnElement) {
-    // 1. Hide all views
-    document.querySelectorAll('.tab-view').forEach(view => {
-        view.classList.remove('active');
-    });
-    // 2. Show target view
-    document.getElementById(tabId).classList.add('active');
-
-    // 3. Update Bottom Nav Icons
-    if (btnElement) {
-        document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-        btnElement.classList.add('active');
-    }
-
-    // 4. Map Resize Bug Fix
-    if (tabId === 'view-map' && map) {
-        setTimeout(() => map.invalidateSize(), 100);
-    }
-}
-
-// Modify search to jump to map
-window.searchAndRoute = function (query) {
-    // Switch to Map Tab first
-    // Find the Map button in nav to set active state visually
-    const mapBtn = document.querySelectorAll('.nav-item')[1]; // Index 1 is Map
-    switchTab('view-map', mapBtn);
-
-    // Then search
-    if (typeof searchInLeaflet === 'function') {
-        searchInLeaflet(query);
-    } else {
-        // If function name varies, we define it clearly below or check existing name
-        // existing name is searchAndRoute(recursive? no, wait)
-        // Ah, I see I am overriding myself. Let's rename the *logic* function.
-        performSearch(query);
-    }
-}
-
-
-// Logger
+// ============================================================
+// LOGGER
+// ============================================================
 function log(msg) {
+    if (!logOutput) return;
     const time = new Date().toLocaleTimeString();
     logOutput.innerHTML = `<div>[${time}] ${msg}</div>` + logOutput.innerHTML;
 }
 
-// Bluetooth Connection
-// Bluetooth Connection
-connectBtn.addEventListener('click', async () => {
-    // 1. Check if Browser Supports Bluetooth
+// ============================================================
+// SPEAK HELPER
+// ============================================================
+function speak(text) {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Prevent overlap
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.95;
+        window.speechSynthesis.speak(utterance);
+    }
+}
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+window.switchTab = function (tabId, btnElement) {
+    document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+
+    if (btnElement) {
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        btnElement.classList.add('active');
+    }
+
+    if (tabId === 'view-map' && map) {
+        setTimeout(() => map.invalidateSize(), 100);
+    }
+};
+
+// ============================================================
+// BLUETOOTH — FIX: Single clean handler, proper reconnect
+// ============================================================
+async function connectHandler() {
     if (!navigator.bluetooth) {
-        alert("Your browser does not support Bluetooth!\nPlease use Google Chrome, Edge, or Opera on Desktop/Android.\n\n(iOS does not support Web Bluetooth in standard browsers).");
+        alert("Web Bluetooth not supported.\nUse Chrome on Android or Desktop.\niOS is not supported.");
         log("Error: Web Bluetooth API not available.");
         return;
     }
-
     try {
-        log('Requesting Bluetooth Device...');
+        log('Requesting Bluetooth device...');
         device = await navigator.bluetooth.requestDevice({
             filters: [{ services: [SERVICE_UUID] }]
         });
-
         device.addEventListener('gattserverdisconnected', onDisconnected);
 
         log('Connecting to GATT Server...');
         server = await device.gatt.connect();
-
-        log('Getting Service...');
         service = await server.getPrimaryService(SERVICE_UUID);
-
-        log('Getting Characteristic...');
         characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
-        log('Connected!');
+        log('✓ Connected to device!');
+        speak("Device connected.");
         setConnectedState(true);
-
     } catch (error) {
-        log('Connection failed: ' + error);
-        console.error(error);
-
-        // Show user-friendly error
-        if (error.toString().includes("User cancelled")) {
-            // Provide a hint if they cancelled
-            // fail silently or log
-        } else {
-            alert("Connection Failed!\n\n1. Make sure Bluetooth is ON.\n2. Make sure the ESP32 is powered ON.\n3. Make sure 'Silent Compass' shows up in the list.\n\nError: " + error);
+        if (!error.toString().includes("User cancelled")) {
+            log('Connection failed: ' + error);
+            alert("Connection Failed.\n\n• Turn Bluetooth ON\n• Power on the ESP32\n• 'Silent Compass' must appear in list\n\n" + error);
         }
     }
-});
+}
 
-function onDisconnected(event) {
+connectBtn.addEventListener('click', connectHandler);
+
+function onDisconnected() {
     log('Device disconnected.');
+    speak("Device disconnected.");
+    characteristic = null;
     setConnectedState(false);
 }
 
 function setConnectedState(isConnected) {
     if (isConnected) {
-        statusDot.classList.add('connected');
-        statusDot.classList.remove('disconnected');
-        statusText.textContent = "Connected to Silent Compass";
+        statusDot.className = 'status-indicator connected';
+        statusText.textContent = isDemoMode ? "Connected (Simulation)" : "Connected to Silent Compass";
         controlPanel.classList.remove('disabled');
         connectBtn.textContent = "Disconnect";
-        connectBtn.onclick = () => device.gatt.disconnect();
+        connectBtn.onclick = () => { device && device.gatt.disconnect(); };
     } else {
-        statusDot.classList.add('disconnected');
-        statusDot.classList.remove('connected');
+        statusDot.className = 'status-indicator disconnected';
         statusText.textContent = "Disconnected";
         controlPanel.classList.add('disabled');
         connectBtn.textContent = "Connect Device";
-        connectBtn.onclick = null; // Revert to listener
-        // Reload page to reset listener simply or just re-add in a real app
-        // For simplicity, we just ask user to refresh or handle it better in v2
+        connectBtn.onclick = connectHandler;  // FIX: always re-attach handler
     }
 }
 
-// Command Sending
+// ============================================================
+// COMMAND SENDING — FIX: Single unified function
+// ============================================================
 async function sendCommand(cmd) {
+    // Demo Mode
+    if (isDemoMode) {
+        log(`[SIM] Command: ${cmd}`);
+        const flashMap = { 'L': btnLeft, 'R': btnRight, 'S': btnStop };
+        const btn = flashMap[cmd];
+        if (btn) {
+            btn.style.opacity = '0.4';
+            setTimeout(() => btn.style.opacity = '1', 250);
+        }
+        if (navigator.vibrate) {
+            const patterns = {
+                'L': [200, 100, 200],
+                'R': [300],
+                'F': [100],
+                'A': [200, 100, 200, 100, 500],
+                'W': [100, 50, 100, 50, 100],
+                'S': [50]
+            };
+            navigator.vibrate(patterns[cmd] || [200]);
+        }
+        return;
+    }
+
+    // Real BLE Mode
     if (!characteristic) {
-        log('Not connected!');
+        log('Not connected to device.');
         return;
     }
     try {
         const encoder = new TextEncoder();
         await characteristic.writeValue(encoder.encode(cmd));
-        log(`Sent Command: ${cmd}`);
+        log(`Sent: ${cmd}`);
     } catch (error) {
         log('Send failed: ' + error);
     }
 }
 
 // Button Listeners
-btnLeft.addEventListener('click', () => sendCommand('L'));
+btnLeft.addEventListener('click',  () => sendCommand('L'));
 btnRight.addEventListener('click', () => sendCommand('R'));
-btnStop.addEventListener('click', () => sendCommand('S'));
+btnStop.addEventListener('click',  () => { sendCommand('S'); navigationActive = false; });
 
-// --- GUIDANCE MODAL FUNCTIONS ---
-function showGuidance() {
-    document.getElementById('guidance-modal').style.display = 'block';
-    log('Opening help guide...');
-}
-
-function closeGuidance() {
-    document.getElementById('guidance-modal').style.display = 'none';
-}
-
-// Close modal when clicking outside
-window.onclick = function (event) {
-    const modal = document.getElementById('guidance-modal');
-    if (event.target == modal) {
-        modal.style.display = 'none';
-    }
-}
-
-// Show guidance on first visit
-if (!localStorage.getItem('silentCompassVisited')) {
-    setTimeout(() => {
-        showGuidance();
-        localStorage.setItem('silentCompassVisited', 'true');
-    }, 1000);
-}
-
-// --- SIMULATION MODE (For non-hardware demos) ---
-const demoBtn = document.getElementById('demo-btn');
-let isDemoMode = false;
-
+// ============================================================
+// DEMO MODE — FIX: Cleaner setup
+// ============================================================
 demoBtn.addEventListener('click', () => {
     isDemoMode = true;
-    log('--- STARTING SIMULATION MODE ---');
-    log('Virtual Device Connected.');
     setConnectedState(true);
-    statusText.textContent = "Connected (Simulation)";
-    statusDot.style.backgroundColor = "cyan";
-    statusDot.style.boxShadow = "0 0 8px cyan";
-
-    // Hide the connect/demo buttons to clean UI
     connectBtn.style.display = 'none';
     demoBtn.style.display = 'none';
+    log('Simulation mode started.');
+    speak("Simulation mode active.");
 });
 
-// Override sendCommand to handle Demo Mode
-const originalSendCommand = sendCommand; // Keep ref to real one if needed mixed (not needed here)
-// Redefining the function for the scope (simpler than hooking)
-async function sendCommand(cmd) {
-    // 1. If in Demo Mode, just log and fake it
-    if (isDemoMode) {
-        log(`[SIM] Sent Command: ${cmd}`);
-        if (cmd === 'L') {
-            btnLeft.style.backgroundColor = "rgba(255, 123, 114, 0.5)";
-            setTimeout(() => btnLeft.style.backgroundColor = "", 200);
-            // Vibrate the phone itself if supported!
-            if (navigator.vibrate) navigator.vibrate(200);
-        }
-        if (cmd === 'R') {
-            btnRight.style.backgroundColor = "rgba(63, 185, 80, 0.5)";
-            setTimeout(() => btnRight.style.backgroundColor = "", 200);
-            if (navigator.vibrate) navigator.vibrate(200);
-        }
-        return;
-    }
-
-    // 2. Real Bluetooth Mode
-    if (!characteristic) {
-        log('Not connected!');
-        return;
-    }
-    try {
-        const encoder = new TextEncoder();
-        await characteristic.writeValue(encoder.encode(cmd));
-    } catch (error) {
-        log('Send failed: ' + error);
-    }
+// ============================================================
+// GPS SMOOTHING
+// ============================================================
+function smoothedPosition(lat, lng) {
+    posBuffer.push({ lat, lng });
+    if (posBuffer.length > 5) posBuffer.shift();
+    const avg = posBuffer.reduce(
+        (acc, p) => ({ lat: acc.lat + p.lat, lng: acc.lng + p.lng }),
+        { lat: 0, lng: 0 }
+    );
+    return { lat: avg.lat / posBuffer.length, lng: avg.lng / posBuffer.length };
 }
 
-// --- AUTOMATED NAVIGATION LOGIC ---
-// --- AUTOMATED NAVIGATION LOGIC ---
-const mapElement = document.getElementById('map');
-const confirmPanel = document.getElementById('confirmation-panel');
-const routeInfo = document.getElementById('route-info');
-const startNavBtn = document.getElementById('start-nav-btn');
-
-let map, userMarker, routingControl;
-let currentHeading = 0;
-let navigationActive = false;
-let currentRoute = null;
-let lastInstructionIndex = 0;
-
-// Risky Areas (Simulated for Demo)
-// In a real app, these would come from an API or map data
-const riskyAreas = [
-    { lat: 0, lng: 0, radius: 20 }, // Placeholder, will update on click
-];
-
-// Speak Helper
-function speak(text) {
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        window.speechSynthesis.speak(utterance);
-    }
-}
-
-// 1. Initialize Map
-// 1. Initialize Map
+// ============================================================
+// MAP INIT
+// ============================================================
 function initMap() {
-    // Check if Leaflet loaded
     if (typeof L === 'undefined') {
-        alert("Error: Map library did not load.\nPlease check your internet connection.");
-        log("Error: Leaflet (L) not found.");
+        log("Error: Leaflet library not loaded.");
         return;
     }
 
-    // Always show map container
-    mapElement.style.display = 'block';
-
     try {
-        // Default View (World)
-        map = L.map('map').setView([0, 0], 2);
+        map = L.map('map').setView([20.5937, 78.9629], 5); // India default
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
         }).addTo(map);
 
-        // Click Listener
+        // Map click → set destination
         map.on('click', function (e) {
-            // Shift-click to add a "Risky Area" for testing
             if (e.originalEvent.shiftKey) {
-                riskyAreas.push({ lat: e.latlng.lat, lng: e.latlng.lng, radius: 20 });
-                L.circle([e.latlng.lat, e.latlng.lng], { color: 'red', radius: 20 }).addTo(map);
-                log("Added Risky Area at clicked path!");
+                L.circle([e.latlng.lat, e.latlng.lng], { color: 'red', radius: 20, fillOpacity: 0.4 }).addTo(map);
+                log("Risky area marked.");
                 speak("Risky area added.");
                 return;
             }
-
             if (userMarker) {
                 const pos = userMarker.getLatLng();
                 setDestination(pos.lat, pos.lng, e.latlng.lat, e.latlng.lng);
             } else {
-                speak("Waiting for G P S lock.");
-                log("Waiting for GPS lock...");
+                speak("Waiting for GPS lock.");
             }
         });
 
-        // Try Geolocation
+        // GPS tracking
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition(
                 (position) => {
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
+                    const raw = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    const smooth = smoothedPosition(raw.lat, raw.lng);
+
+                    // GPS-derived heading (more reliable than compass)
+                    if (lastPos) {
+                        currentHeading = calculateBearing(lastPos.lat, lastPos.lng, smooth.lat, smooth.lng);
+                    }
+                    lastPos = smooth;
 
                     if (!userMarker) {
-                        userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You").openPopup();
-                        map.setView([lat, lng], 16);
-                        speak("G P S Connected.");
-                        log("GPS Location Found.");
+                        userMarker = L.marker([smooth.lat, smooth.lng])
+                            .addTo(map)
+                            .bindPopup("📍 You are here")
+                            .openPopup();
+                        map.setView([smooth.lat, smooth.lng], 17);
+                        speak("GPS connected.");
+                        log("GPS location found.");
+                        updateLocationBanner(smooth.lat, smooth.lng);
                     } else {
-                        userMarker.setLatLng([lat, lng]);
+                        userMarker.setLatLng([smooth.lat, smooth.lng]);
                     }
                 },
                 (err) => {
                     log("GPS Error: " + err.message);
-                    alert("GPS Error: " + err.message + "\nEnsure Location is allowed.");
                 },
-                { enableHighAccuracy: true }
+                { enableHighAccuracy: true, maximumAge: 1000 }
             );
-        } else {
-            log("Geolocation API not supported.");
         }
 
-        // track heading
+        // Device orientation (fallback compass)
         if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', (event) => {
-                if (event.alpha) currentHeading = 360 - event.alpha;
+                if (event.alpha && !lastPos) {
+                    currentHeading = 360 - event.alpha;
+                }
             });
         }
 
     } catch (e) {
-        log("Map Init Error: " + e);
-        alert("Map Error: " + e);
+        log("Map init error: " + e);
     }
 }
 
-// 4. Calculate Route (With Search)
-function setDestination(startLat, startLng, destLat, destLng) {
-    if (routingControl) {
-        map.removeControl(routingControl);
+// ============================================================
+// REVERSE GEOCODING — Update location banner
+// ============================================================
+async function updateLocationBanner(lat, lng) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+        const res  = await fetch(url);
+        const data = await res.json();
+        const addr = data.address;
+        const label = addr.road || addr.suburb || addr.city || "Current Location";
+        const city  = addr.city || addr.town || addr.state || '';
+        const banner = document.getElementById('banner-location');
+        const bannerSub = document.getElementById('banner-sublocation');
+        if (banner) banner.textContent = label;
+        if (bannerSub) bannerSub.textContent = city;
+    } catch (e) {
+        log("Reverse geocode error: " + e);
     }
+}
 
-    // Stop any current nav
+// ============================================================
+// ROUTE CALCULATION
+// ============================================================
+function setDestination(startLat, startLng, destLat, destLng) {
+    if (routingControl) map.removeControl(routingControl);
+
+    // FIX: Always reset state for new route
     navigationActive = false;
+    lastInstructionIndex = 0;
+    lastSpokenInstruction = '';
+    destinationPoint = L.latLng(destLat, destLng);
     confirmPanel.style.display = 'none';
 
-    log("Calculating Route...");
-    speak("Calculating route...");
+    log("Calculating route...");
+    speak("Calculating route.");
 
     routingControl = L.Routing.control({
-        waypoints: [
-            L.latLng(startLat, startLng),
-            L.latLng(destLat, destLng)
-        ],
+        waypoints: [L.latLng(startLat, startLng), L.latLng(destLat, destLng)],
         routeWhileDragging: false,
-        geocoder: L.Control.Geocoder.nominatim(), // Adds Search Bar
-        show: true, // Show the panel so they can see/search
+        showAlternatives: false,
+        lineOptions: { styles: [{ color: '#2fbad3', weight: 5 }] },
+        createMarker: () => null, // Use our own markers
     }).on('routesfound', function (e) {
-        const routes = e.routes;
-        currentRoute = routes[0]; // Store the route for step-by-step nav
-        const summary = currentRoute.summary;
-        const distKm = (summary.totalDistance / 1000).toFixed(1);
-        const timeMin = Math.round(summary.totalTime / 60);
+        currentRoute = e.routes[0];
+        const dist = (currentRoute.summary.totalDistance / 1000).toFixed(1);
+        const time = Math.round(currentRoute.summary.totalTime / 60);
 
-        log(`Route: ${distKm} km, ${timeMin} min`);
-
-        // Show Confirmation
+        log(`Route found: ${dist} km, ~${time} min`);
         confirmPanel.style.display = 'block';
-        routeInfo.textContent = `Destination Found: ${distKm} km (${timeMin} min).`;
-        speak(`Route found. Distance is ${distKm} kilometers. Press Start Guidance to begin.`);
+        routeInfo.textContent = `${dist} km · ${time} min walk`;
+        speak(`Route found. ${dist} kilometers, about ${time} minutes. Press Start to begin.`);
 
-        // Setup Start Button
         startNavBtn.onclick = () => {
             navigationActive = true;
             lastInstructionIndex = 0;
             confirmPanel.style.display = 'none';
-            speak("Starting Navigation. Walk forward.");
-
-            // Initial instruction
-            handleNavigationStep(userMarker.getLatLng());
+            speak("Navigation started. Walk forward.");
+            log("Navigation active.");
+            startNavLoop();
         };
-
+    }).on('routingerror', function (e) {
+        log("Routing error: " + e.error.message);
+        speak("Could not find a route. Please try a different destination.");
     }).addTo(map);
 }
 
-// 5. Helper: Calculate Bearing between two points
-function calculateBearing(startLat, startLng, destLat, destLng) {
-    const startLatRad = toRadians(startLat);
-    const startLngRad = toRadians(startLng);
-    const destLatRad = toRadians(destLat);
-    const destLngRad = toRadians(destLng);
+// ============================================================
+// NAVIGATION LOOP — Runs every 2s when active
+// ============================================================
+function startNavLoop() {
+    if (navInterval) clearInterval(navInterval);
+    navInterval = setInterval(() => {
+        if (!navigationActive || !userMarker || !currentRoute) return;
 
-    const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
-    const x = Math.cos(startLatRad) * Math.sin(destLatRad) -
-        Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
-    let brng = Math.atan2(y, x);
-    brng = toDegrees(brng);
-    return (brng + 360) % 360;
+        const userPos = userMarker.getLatLng();
+
+        // 1. Check arrival
+        if (destinationPoint) {
+            const distToDest = map.distance(userPos, destinationPoint);
+            if (distToDest < 15) {
+                speak("You have arrived at your destination.");
+                log("✓ Arrived!");
+                sendCommand('A');
+                if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
+                navigationActive = false;
+                clearInterval(navInterval);
+                return;
+            }
+            // Announce distance every 100m
+            announceDistanceIfNeeded(distToDest);
+        }
+
+        // 2. Check off-route (> 40m from route)
+        checkOffRoute(userPos);
+
+        // 3. Turn-by-turn
+        handleNavigationStep(userPos);
+
+    }, 2000);
 }
 
-function toRadians(deg) { return deg * (Math.PI / 180); }
-function toDegrees(rad) { return rad * (180 / Math.PI); }
+let lastAnnouncedDistance = Infinity;
 
-// 6. Robust Navigation Loop (Runs every 2 seconds)
-setInterval(() => {
-    if (!navigationActive || !userMarker) return;
-
-    const userPos = userMarker.getLatLng();
-
-    // A. Check for Risky Areas
-    checkRiskyAreas(userPos);
-
-    // B. Check Navigation Instructions
-    handleNavigationStep(userPos);
-
-}, 2500);
-
-// --- NEW NAVIGATION LOGIC ---
-
-function checkRiskyAreas(userPos) {
-    let inDanger = false;
-    for (let area of riskyAreas) {
-        const dist = map.distance(userPos, [area.lat, area.lng]);
-        if (dist < area.radius) {
-            inDanger = true;
+function announceDistanceIfNeeded(dist) {
+    const thresholds = [500, 300, 200, 100, 50];
+    for (const t of thresholds) {
+        if (dist < t + 10 && lastAnnouncedDistance > t + 10) {
+            speak(`${t} meters to destination.`);
+            lastAnnouncedDistance = dist;
             break;
         }
     }
+}
 
-    if (inDanger) {
-        log("[ALERT] Entering Risky Area!");
-        speak("Warning. Risky Area.");
-        sendCommand('W'); // Trigger Warning Vibration
-
-        // Visual Alert
-        const alertOverlay = document.createElement('div');
-        alertOverlay.className = 'risky-alert';
-        document.body.appendChild(alertOverlay);
-        setTimeout(() => alertOverlay.remove(), 3000);
+function checkOffRoute(userPos) {
+    if (!currentRoute || !currentRoute.coordinates) return;
+    let minDist = Infinity;
+    for (const coord of currentRoute.coordinates) {
+        const d = map.distance(userPos, coord);
+        if (d < minDist) minDist = d;
+    }
+    if (minDist > 40) {
+        log("[NAV] Off route — recalculating...");
+        speak("Off route. Recalculating.");
+        const dest = currentRoute.waypoints[currentRoute.waypoints.length - 1];
+        setDestination(userPos.lat, userPos.lng, dest.latLng.lat, dest.latLng.lng);
     }
 }
 
 function handleNavigationStep(userPos) {
-    if (!currentRoute || !currentRoute.instructions) return;
-
-    // Find the next instruction we haven't passed yet
-    // Simple logic: find closest instruction point ahead
     const instructions = currentRoute.instructions;
+    if (!instructions || lastInstructionIndex >= instructions.length) return;
 
-    // Safety check
-    if (lastInstructionIndex >= instructions.length) {
-        log("Arrived at destination!");
-        speak("You have arrived.");
-        navigationActive = false;
-        sendCommand('C'); // A success Pattern
-        return;
-    }
-
-    const nextStep = instructions[lastInstructionIndex];
-    // OSRM instructions usually have an index into the coordinates array
-    // We need to look at the *next* major turn
-
-    // For simplicity in this demo, we look at the next coordinate in the route path
-    // verifying if we are close to a turn. 
-    // real OSRM matching is complex, so we use the instruction's type and distance
-
-    // Let's rely on the instruction's text and type
-    // If distance to the next turn point is < 30m, warn the user
-
-    // We can also just calculate bearing to the *final destination* of this step
-    // But better: Calculate bearing to the *immediate next coordinate* in the polyline
-    // to keep them on the path.
-
-    // ... Simplified Logic for "Turn-by-Turn" ...
-    // 1. Get current instruction
-    const instr = instructions[lastInstructionIndex];
-
-    // 2. Check distance to this instruction's end point? 
-    // Actually, instructions[i] describes the segment *after* the turn usually.
-    // Let's look at route coordinates.
-    // We will simply point them to the next significant coordinate.
-
-    // Find the closest point on the route to snap the user?
-    // Optimization: Just calculate bearing to the point 10 meters ahead in the route.
-
-    // --- ACTUAL IMPLEMENTATION FOR DEMO ---
-    // We will look at the instruction. If it says "Turn Right" and we are close, vibrate.
-
-    // Let's assume the user is moving. We check the *next* instruction.
-    // If we are within 20 meters of the next instruction's coordinate (which is usually the turn point)
-
-    // Note: Leaflet Routing Machine implementation details vary. 
-    // instructions[i].index is the index in the coordinates array.
-
-    // Look ahead to the NEXT instruction (the turn)
+    // Look ahead to the next turn
     if (lastInstructionIndex + 1 < instructions.length) {
         const nextInstr = instructions[lastInstructionIndex + 1];
-        const turnIndex = nextInstr.index;
-        const turnPoint = currentRoute.coordinates[turnIndex];
+        const turnPoint = currentRoute.coordinates[nextInstr.index];
+        if (!turnPoint) return;
 
         const distToTurn = map.distance(userPos, turnPoint);
 
-        if (distToTurn < 25) { // Within 25 meters of the turn
-            const turnType = nextInstr.type; // 'Right', 'Left', etc.
-            const text = nextInstr.text || "";
-
-            // Check if we already handled this index? No, we just repeat until we pass it.
-            // How do we know we passed it?
-            // If distance starts increasing OR we are very close (< 5m).
-
-            if (distToTurn < 8) {
-                // We are AT the turn.
-                log(`[NAV] At turn: ${text}`);
-                lastInstructionIndex++; // Advance to next segment
-                speak(text);
-                return;
-            }
-
-            // We are APPROACHING the turn -> Give feedback
-            if (text.toLowerCase().includes('right') || nextInstr.type === 'TurnRight') {
-                log(`[NAV] Approaching Right Turn (${Math.round(distToTurn)}m)`);
-                sendCommand('R');
-            } else if (text.toLowerCase().includes('left') || nextInstr.type === 'TurnLeft') {
-                log(`[NAV] Approaching Left Turn (${Math.round(distToTurn)}m)`);
-                sendCommand('L');
-            }
+        if (distToTurn < 8) {
+            // AT the turn — advance
+            lastInstructionIndex++;
+            speak(nextInstr.text || "Continue.");
+            log(`[NAV] Turn: ${nextInstr.text}`);
             return;
         }
-    }
 
-    // If not near a turn, just keep them straight?
-    // Or guide them to the path?
-    // For now, "Silence" means "Go Straight".
-}
+        if (distToTurn < 30) {
+            const text = (nextInstr.text || '').toLowerCase();
+            const instrKey = nextInstr.type + '_' + lastInstructionIndex;
 
-// Global Error Handler
-window.onerror = function (message, source, lineno, colno, error) {
-    alert("App Error: " + message);
-    if (logOutput) log("Script Error: " + message);
-};
+            if (instrKey !== lastSpokenInstruction) {
+                lastSpokenInstruction = instrKey;
 
-// Start
-setTimeout(initMap, 1000); // Existing map init
-
-// --- VOICE CONTROL IMPLEMENTATION ---
-let recognition;
-
-if ('webkitSpeechRecognition' in window) {
-    recognition = new webkitSpeechRecognition();
-    recognition.continuous = false;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = function () {
-        micBtn.classList.add('listening');
-        voiceStatus.textContent = "Listening...";
-        voiceStatus.classList.add('visible');
-    };
-
-    recognition.onend = function () {
-        micBtn.classList.remove('listening');
-        voiceStatus.classList.remove('visible');
-    };
-
-    recognition.onresult = function (event) {
-        const transcript = event.results[0][0].transcript.toLowerCase();
-        log(`Voice: "${transcript}"`);
-        voiceStatus.textContent = `"${transcript}"`;
-        voiceStatus.classList.add('visible');
-        setTimeout(() => voiceStatus.classList.remove('visible'), 3000);
-
-        handleVoiceCommand(transcript);
-    };
-
-    micBtn.addEventListener('click', () => {
-        try {
-            recognition.start();
-            speak("Listening.");
-        } catch (e) {
-            log("Mic Error: " + e);
-        }
-    });
-} else {
-    micBtn.style.display = 'none';
-    log("Web Speech API not supported.");
-}
-
-function handleVoiceCommand(text) {
-    if (text.includes("take me to")) {
-        const destination = text.replace("take me to", "").trim();
-        if (destination.length > 0) {
-            log(`Searching for: ${destination}`);
-            speak(`Searching for ${destination}`);
-            searchAndRoute(destination);
-        }
-    } else if (text.includes("stop")) {
-        sendCommand('S');
-        speak("Stopping.");
-    } else if (text.includes("where am i")) {
-        if (userMarker) {
-            speak("You are currently located on the map.");
-            // Reverse geocoding could go here
-        }
-    }
-}
-
-function performSearch(query) {
-    // LEAFLET GEOCODER SEARCH
-    if (!L.Control.Geocoder) return;
-
-    const geocoder = L.Control.Geocoder.nominatim();
-    geocoder.geocode(query, function (results) {
-        if (results && results.length > 0) {
-            const result = results[0];
-            const destLat = result.center.lat;
-            const destLng = result.center.lng;
-
-            log(`Found: ${result.name}`);
-            speak(`Found ${result.name}. Calculating route.`);
-
-            if (userMarker) {
-                const userPos = userMarker.getLatLng();
-                setDestination(userPos.lat, userPos.lng, destLat, destLng);
-            } else {
-                speak("Waiting for GPS location.");
+                if (text.includes('right') || nextInstr.type === 'TurnRight') {
+                    log(`[NAV] Right turn in ${Math.round(distToTurn)}m`);
+                    speak(`Turn right in ${Math.round(distToTurn)} meters.`);
+                    sendCommand('R');
+                } else if (text.includes('left') || nextInstr.type === 'TurnLeft') {
+                    log(`[NAV] Left turn in ${Math.round(distToTurn)}m`);
+                    speak(`Turn left in ${Math.round(distToTurn)} meters.`);
+                    sendCommand('L');
+                } else {
+                    sendCommand('F');
+                }
             }
-        } else {
-            speak("Destination not found. Please try again.");
         }
-    });
+    }
 }
 
-// --- NEARBY SEARCH LOGIC ---
-const resultsView = document.getElementById('results-view');
-const categoryGrid = document.getElementById('category-grid');
-const resultsList = document.getElementById('results-list');
-const resultsTitle = document.getElementById('results-title');
-const loadingSpinner = document.getElementById('loading-spinner');
+// ============================================================
+// BEARING CALCULATION
+// ============================================================
+function calculateBearing(lat1, lng1, lat2, lng2) {
+    const toRad = d => d * Math.PI / 180;
+    const toDeg = r => r * 180 / Math.PI;
+    const y = Math.sin(toRad(lng2 - lng1)) * Math.cos(toRad(lat2));
+    const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+              Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lng2 - lng1));
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
 
-window.findNearby = async function (categoryName, searchTags) {
+// ============================================================
+// NEARBY SEARCH — FIX: Overpass API (not Nominatim)
+// ============================================================
+window.findNearby = async function (categoryName, tagKey, tagValue) {
     if (!userMarker) {
-        alert("Please enable GPS or wait for location lock first!");
+        speak("Please wait for GPS lock first.");
+        alert("GPS not found yet. Please wait for location lock.");
         return;
     }
 
-    // UI Toggle
     categoryGrid.style.display = 'none';
     resultsView.style.display = 'block';
     resultsList.innerHTML = '';
     loadingSpinner.style.display = 'block';
     resultsTitle.textContent = `${categoryName} Nearby`;
+    speak(`Searching for ${categoryName} nearby.`);
 
     const userPos = userMarker.getLatLng();
-    // Bounding box ~2km (approx 0.02 degrees)
-    const viewbox = [
-        userPos.lng - 0.02, // left
-        userPos.lat + 0.02, // top
-        userPos.lng + 0.02, // right
-        userPos.lat - 0.02  // bottom
-    ].join(',');
+    const radius = 2000; // 2km
+
+    // Use tag from osmTagMap if not provided directly
+    if (!tagKey) {
+        const tag = osmTagMap[categoryName];
+        if (tag) { tagKey = tag[0]; tagValue = tag[1]; }
+        else      { tagKey = 'amenity'; tagValue = categoryName.toLowerCase(); }
+    }
+
+    const query = `
+        [out:json][timeout:25];
+        node["${tagKey}"="${tagValue}"](around:${radius},${userPos.lat},${userPos.lng});
+        out body;
+    `;
 
     try {
-        // We use 'q' for general query or specific tags. 
-        // Nominatim supports comma-separated for simple queries or we iterate.
-        // Let's use the first tag for the main query to keep it simple and reliable
-        // or just construct a query like "bus station near [lat,lon]"? 
-        // Better: use the viewbox and the query.
-
-        // Split tags and take first for query gives better results usually
-        const primaryTag = searchTags.split(',')[0].replace('_', ' ');
-
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${primaryTag}&viewbox=${viewbox}&bounded=1&limit=15`;
-
+        const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
         const response = await fetch(url);
         const data = await response.json();
 
-        // Calculate distances & Sort
-        const dataWithDist = data.map(place => {
+        const results = data.elements.map(place => {
             const dist = map.distance(userPos, [place.lat, place.lon]);
-            return { ...place, distance: dist };
+            const name = place.tags?.name || place.tags?.['name:en'] || categoryName;
+            return { ...place, distance: dist, displayName: name };
         });
 
-        // Sort by distance (nearest first)
-        dataWithDist.sort((a, b) => a.distance - b.distance);
+        results.sort((a, b) => a.distance - b.distance);
 
         loadingSpinner.style.display = 'none';
-        renderResults(dataWithDist);
+        renderResults(results, categoryName);
+
+        if (results.length > 0) {
+            speak(`Found ${results.length} ${categoryName} nearby. Nearest is ${results[0].displayName}, ${formatDist(results[0].distance)} away.`);
+        } else {
+            speak(`No ${categoryName} found within 2 kilometers.`);
+        }
 
     } catch (error) {
         loadingSpinner.style.display = 'none';
-        resultsList.innerHTML = '<div style="padding:15px; text-align:center;">Error fetching results. Please try again.</div>';
-        log("Search Error: " + error);
+        resultsList.innerHTML = '<div style="padding:20px;text-align:center;color:#aaa">Could not fetch results. Check your internet connection.</div>';
+        log("Overpass Error: " + error);
+        speak("Search failed. Please try again.");
     }
+};
+
+function formatDist(meters) {
+    return meters < 1000 ? Math.round(meters) + ' meters' : (meters / 1000).toFixed(1) + ' kilometers';
 }
 
-function renderResults(places) {
+function renderResults(places, categoryName) {
     if (places.length === 0) {
-        resultsList.innerHTML = '<div style="padding:15px; text-align:center;">No results found nearby.</div>';
+        resultsList.innerHTML = `<div style="padding:20px;text-align:center;color:#aaa">No ${categoryName} found within 2km.</div>`;
         return;
     }
 
-    places.forEach(place => {
+    places.forEach((place, index) => {
         const item = document.createElement('div');
         item.className = 'result-item';
 
-        // Format Name (remove unnecessary commas)
-        const name = place.display_name.split(',')[0];
         const distDisplay = place.distance < 1000
             ? Math.round(place.distance) + ' m'
             : (place.distance / 1000).toFixed(1) + ' km';
 
+        const walkMin = Math.round(place.distance / 80); // ~80m per min
+
+        // ACCESSIBILITY: Full aria-label for TalkBack
+        item.setAttribute('role', 'listitem');
+        item.setAttribute('aria-label',
+            `${place.displayName}, ${distDisplay} away, about ${walkMin} minute walk. Double tap Go to navigate.`);
+
         item.innerHTML = `
             <div class="result-info">
-                <h3>${name}</h3>
-                <p>${distDisplay} • ${place.type}</p>
+                <h3>${place.displayName}</h3>
+                <p>${distDisplay} · ~${walkMin} min walk</p>
             </div>
-            <button class="go-btn" onclick="startRouteTo(${place.lat}, ${place.lon})">Go</button>
+            <button 
+                class="go-btn" 
+                aria-label="Navigate to ${place.displayName}"
+                onclick="startRouteTo(${place.lat}, ${place.lon}, '${place.displayName}')">
+                Go
+            </button>
         `;
         resultsList.appendChild(item);
     });
@@ -727,32 +597,190 @@ function renderResults(places) {
 window.closeResults = function () {
     resultsView.style.display = 'none';
     categoryGrid.style.display = 'grid';
-}
+    speak("Back to categories.");
+};
 
-window.startRouteTo = function (lat, lon) {
-    // 1. Switch to map
+window.startRouteTo = function (lat, lon, name) {
     const mapBtn = document.querySelectorAll('.nav-item')[1];
     switchTab('view-map', mapBtn);
 
-    // 2. Set Destination
     if (userMarker) {
         const userPos = userMarker.getLatLng();
         setDestination(userPos.lat, userPos.lng, lat, lon);
+        speak(`Setting route to ${name || 'destination'}.`);
+    }
+};
+
+// ============================================================
+// VOICE CONTROL
+// ============================================================
+let recognition;
+
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'en-IN'; // Better for Indian English accent
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+        micBtn.classList.add('listening');
+        if (voiceStatus) { voiceStatus.textContent = "Listening..."; voiceStatus.classList.add('visible'); }
+    };
+
+    recognition.onend = () => {
+        micBtn.classList.remove('listening');
+        if (voiceStatus) voiceStatus.classList.remove('visible');
+    };
+
+    recognition.onerror = (e) => {
+        log("Mic error: " + e.error);
+        micBtn.classList.remove('listening');
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase().trim();
+        log(`Voice: "${transcript}"`);
+        if (voiceStatus) {
+            voiceStatus.textContent = `"${transcript}"`;
+            voiceStatus.classList.add('visible');
+            setTimeout(() => voiceStatus.classList.remove('visible'), 3000);
+        }
+        handleVoiceCommand(transcript);
+    };
+
+    micBtn.addEventListener('click', () => {
+        try { recognition.start(); speak("Listening."); }
+        catch (e) { log("Mic: " + e); }
+    });
+} else {
+    if (micBtn) micBtn.style.display = 'none';
+    log("Speech Recognition not supported.");
+}
+
+function handleVoiceCommand(text) {
+    // Navigation commands
+    if (text.includes("take me to") || text.includes("navigate to") || text.includes("go to")) {
+        const dest = text.replace(/take me to|navigate to|go to/g, '').trim();
+        if (dest.length > 0) {
+            speak(`Searching for ${dest}.`);
+            performSearch(dest);
+        }
+    }
+    // Stop navigation
+    else if (text.includes("stop") || text.includes("cancel")) {
+        sendCommand('S');
+        navigationActive = false;
+        speak("Navigation stopped.");
+        log("Navigation stopped by voice.");
+    }
+    // Where am I
+    else if (text.includes("where am i") || text.includes("my location")) {
+        if (userMarker) {
+            const pos = userMarker.getLatLng();
+            updateLocationBanner(pos.lat, pos.lng);
+            speak("Fetching your current location.");
+        }
+    }
+    // Category search
+    else if (text.includes("find") || text.includes("nearest") || text.includes("nearby")) {
+        for (const category of Object.keys(osmTagMap)) {
+            if (text.includes(category.toLowerCase())) {
+                const tag = osmTagMap[category];
+                findNearby(category, tag[0], tag[1]);
+                return;
+            }
+        }
+        speak("I didn't understand that category. Try saying find banks or find hospital.");
+    }
+    // Help
+    else if (text.includes("help")) {
+        speak("You can say: take me to a place name, find banks, find hospital, where am I, or stop navigation.");
+    }
+    else {
+        speak("I didn't understand. Try saying take me to, find hospital, or stop navigation.");
     }
 }
 
-// --- GUARDIAN FEATURE ---
+// ============================================================
+// SEARCH (Geocoder → Route)
+// ============================================================
+function performSearch(query) {
+    if (!L.Control.Geocoder) { log("Geocoder not loaded."); return; }
+
+    const geocoder = L.Control.Geocoder.nominatim();
+    geocoder.geocode(query, (results) => {
+        if (results && results.length > 0) {
+            const result = results[0];
+            log(`Found: ${result.name}`);
+            speak(`Found ${result.name}. Calculating route.`);
+            if (userMarker) {
+                const pos = userMarker.getLatLng();
+                setDestination(pos.lat, pos.lng, result.center.lat, result.center.lng);
+                const mapBtn = document.querySelectorAll('.nav-item')[1];
+                switchTab('view-map', mapBtn);
+            } else {
+                speak("GPS not ready. Please wait.");
+            }
+        } else {
+            speak("Destination not found. Please try again.");
+            log("Geocoder: no results for " + query);
+        }
+    });
+}
+
+window.searchAndRoute = performSearch;
+
+// ============================================================
+// GUARDIAN SOS BUTTON
+// ============================================================
 guardianBtn.addEventListener('click', () => {
     if (!userMarker) {
-        alert("GPS Location not found yet!");
+        speak("GPS location not found yet.");
+        alert("GPS Location not found yet. Please wait.");
         return;
     }
     const pos = userMarker.getLatLng();
     const mapLink = `https://www.google.com/maps/search/?api=1&query=${pos.lat},${pos.lng}`;
-    const msg = `Help! I am here: ${mapLink}`;
-
-    // Open WhatsApp
+    const msg = `🆘 HELP! I need assistance. My current location:\n${mapLink}`;
     const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(msg)}`;
     window.open(whatsappUrl, '_blank');
+    speak("Sending SOS to guardian.");
+    log("SOS sent.");
 });
+
+// ============================================================
+// GUIDANCE MODAL
+// ============================================================
+window.showGuidance = function () {
+    document.getElementById('guidance-modal').style.display = 'block';
+};
+
+window.closeGuidance = function () {
+    document.getElementById('guidance-modal').style.display = 'none';
+};
+
+window.onclick = function (event) {
+    const modal = document.getElementById('guidance-modal');
+    if (event.target === modal) modal.style.display = 'none';
+};
+
+if (!localStorage.getItem('silentCompassVisited')) {
+    setTimeout(() => {
+        showGuidance();
+        localStorage.setItem('silentCompassVisited', 'true');
+    }, 1200);
+}
+
+// ============================================================
+// GLOBAL ERROR HANDLER
+// ============================================================
+window.onerror = function (message, source, lineno) {
+    log(`Script Error [${lineno}]: ${message}`);
+};
+
+// ============================================================
+// INIT
+// ============================================================
+setTimeout(initMap, 800);
 
