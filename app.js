@@ -171,7 +171,8 @@ function unlockSpeech() {
 }
 
 function speak(text, interrupt = true, force = false) {
-    if (!screenReaderOn && !force) return;
+    // NOTE: speech always plays — screenReaderOn controls touch-announce only.
+    // 'force' kept for backward compatibility but no longer gates speech.
 
     const support = detectSpeechSupport();
 
