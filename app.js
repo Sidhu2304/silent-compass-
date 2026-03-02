@@ -603,7 +603,16 @@ function setDestination(startLat, startLng, destLat, destLng) {
         waypoints: [L.latLng(startLat, startLng), L.latLng(destLat, destLng)],
         routeWhileDragging: false,
         showAlternatives: false,
-        lineOptions: { styles: [{ color: '#2fbad3', weight: 5 }] },
+        show: false,                  // hide the built-in step-by-step panel
+        addWaypoints: false,          // don't allow adding new waypoints by clicking
+        draggableWaypoints: false,    // don't allow dragging waypoints
+        fitSelectedRoutes: true,      // auto-zoom to show the full route
+        lineOptions: {
+            styles: [
+                { color: '#000', opacity: 0.3, weight: 10 }, // dark outline for contrast
+                { color: '#2fbad3', opacity: 1, weight: 6 }  // bright teal path on top
+            ]
+        },
         createMarker: () => null,
     }).on('routesfound', (e) => {
         currentRoute = e.routes[0];
@@ -622,8 +631,9 @@ function setDestination(startLat, startLng, destLat, destLng) {
             log('Nav active');
             startNavLoop();
         };
-    }).on('routingerror', () => {
-        speak('Route not found. Try a different destination.');
+    }).on('routingerror', (e) => {
+        log('Routing error: ' + (e.error?.message || 'unknown'));
+        speak('Could not find a route. Please check your internet connection and try again.');
     }).addTo(map);
 }
 
